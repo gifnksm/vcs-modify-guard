@@ -29,6 +29,12 @@ rust-version = true
 github-actions = { workflows = "ci.yml" }
 codecov = true
 
+[dependencies]
+snafu = "0.9.1"
+
+[dev-dependencies]
+clap = { version = "4.6.2", features = ["derive"] }
+
 [badges]
 maintenance = { status = "actively-developed" }
 
@@ -52,7 +58,6 @@ exhaustive_enums = "warn"
 exhaustive_structs = "warn"
 exit = "warn"
 expect_used = "warn"
-field_scoped_visibility_modifiers = "warn"
 filetype_is_file = "warn"
 get_unwrap = "warn"
 if_then_some_else_none = "warn"
@@ -116,7 +121,9 @@ trivial_casts = "warn"
 trivial_numeric_casts = "warn"
 unreachable_pub = "warn"
 unsafe_attr_outside_unsafe = "warn"
-unused_crate_dependencies = "warn"
+# false positive with examples, so we disable it
+# <https://github.com/rust-lang/rust/issues/95513>
+# unused_crate_dependencies = "warn"
 unused_lifetimes = "warn"
 unused_qualifications = "warn"
 

@@ -48,14 +48,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct AllowOptions {
     allow_no_vcs: bool,
-    allow_staged: bool,
     allow_dirty: bool,
+    allow_staged: bool,
 }
 
 fn ensure_repository_status(
     target_dir: &Path,
     options: &AllowOptions,
 ) -> Result<(), Box<dyn Error>> {
+    // Match `cargo fix` exactly:
+    // - `--allow-no-vcs` allows running even when no repository is found.
+    // - `--allow-dirty` allows worktree changes, staged changes, and
+    //   untracked files.
+    // - `--allow-staged` allows staged changes, but still rejects worktree
+    //   changes and untracked files.
     if options.allow_no_vcs {
         eprintln!("--allow-no-vcs is set, skipping repository checks.");
         return Ok(());

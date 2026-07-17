@@ -7,8 +7,14 @@ description = "A library for querying VCS working tree status."
 readme = "README.md"
 repository = "https://github.com/gifnksm/vcs-status"
 license = "MIT OR Apache-2.0"
-keywords = []
-categories = []
+keywords = [
+  "dirty",
+  "git",
+  "source-control",
+  "vcs",
+  "version-control",
+]
+categories = ["command-line-utilities", "development-tools", "version-control"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [package.metadata.cargo-sync-rdme.badge]
@@ -25,3 +31,96 @@ codecov = true
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[lints.clippy]
+cargo = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Restriction group
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+assertions_on_result_states = "warn"
+clone_on_ref_ptr = "warn"
+# this lint is currently nightly-only and will reach stable Clippy in 1.99; keep it disabled until then
+# definition_in_module_root = "warn"
+doc_paragraphs_missing_punctuation = "warn"
+empty_drop = "warn"
+empty_enum_variants_with_brackets = "warn"
+empty_structs_with_brackets = "warn"
+error_impl_error = "warn"
+exhaustive_enums = "warn"
+exhaustive_structs = "warn"
+exit = "warn"
+expect_used = "warn"
+field_scoped_visibility_modifiers = "warn"
+filetype_is_file = "warn"
+get_unwrap = "warn"
+if_then_some_else_none = "warn"
+impl_trait_in_params = "warn"
+# this lint has false positives with `#[cfg(test)]` and --all-targets, so we disable it for now
+# <https://github.com/rust-lang/rust-clippy/issues/17342>
+# inline_modules = "warn"
+map_err_ignore = "warn"
+map_with_unused_argument_over_ranges = "warn"
+missing_inline_in_public_items = "warn"
+mutex_atomic = "warn"
+mutex_integer = "warn"
+needless_raw_strings = "warn"
+non_zero_suggestions = "warn"
+panic = "warn"
+pathbuf_init_then_push = "warn"
+pointer_format = "warn"
+pub_without_shorthand = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+redundant_test_prefix = "warn"
+redundant_type_annotations = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+# this lint is currently nightly-only and will reach stable Clippy in 1.99; keep it disabled until then
+# rest_pattern_accessible_field = "warn"
+return_and_then = "warn"
+same_name_method = "warn"
+self_named_module_files = "warn"
+str_to_string = "warn"
+string_add = "warn"
+string_lit_chars_any = "warn"
+string_slice = "warn"
+suspicious_xor_used_as_pow = "warn"
+tests_outside_test_module = "warn"
+todo = "warn"
+try_err = "warn"
+undocumented_unsafe_blocks = "warn"
+unimplemented = "warn"
+# this lint is currently nightly-only and will reach stable Clippy in 1.99; keep it disabled until then
+# unnecessary_rest_pattern = "warn"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+unnecessary_self_imports = "warn"
+unseparated_literal_suffix = "warn"
+unused_result_ok = "warn"
+unused_trait_names = "warn"
+unwrap_used = "warn"
+verbose_file_reads = "warn"
+
+[lints.rust]
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+keyword_idents = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+missing_unsafe_on_extern = "warn"
+redundant_imports = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unsafe_attr_outside_unsafe = "warn"
+unused_crate_dependencies = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[lints.rustdoc]
+missing_crate_level_docs = "warn"
+private_doc_tests = "warn"
+unescaped_backticks = "warn"

@@ -74,10 +74,23 @@
 //! vcs-status = "0.1.0"
 //! ```
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(html_root_url = "https://docs.rs/vcs-status/0.1.0")]
 
-pub use self::{error::VcsStatusError, repository::*};
+#[cfg_attr(
+    not(vcs_backend_enabled),
+    expect(
+        unused_imports,
+        unreachable_pub,
+        reason = "when no VCS backend is enabled, `vcs::*` re-exports nothing from the crate root"
+    )
+)]
+pub use self::vcs::*;
+pub use self::{error::*, repository::*};
 
 mod error;
 mod repository;
+#[cfg(test)]
+mod testing;
+mod util;
 mod vcs;

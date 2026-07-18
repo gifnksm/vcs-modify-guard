@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     VcsStatusError,
@@ -18,13 +21,16 @@ impl Repository {
     /// This searches `path` and its parent directories for a repository
     /// supported by one of the enabled backends.
     ///
-    /// Returns `Ok(Some(_))` if a supported repository is found, `Ok(None)`
-    /// if no supported repository is found, and `Err(_)` if a backend fails
-    /// while probing `path`.
+    /// Returns `Ok(Some(_))` if a supported repository worktree is found, or
+    /// `Ok(None)` if no supported repository is found.
     ///
     /// # Errors
     ///
-    /// Returns an error if a backend fails while probing `path`.
+    /// Returns an error if:
+    ///
+    /// - a backend fails while probing `path`
+    /// - the discovered repository does not provide a worktree for file
+    ///   status checks
     #[inline]
     pub fn discover<P>(path: P) -> Result<Option<Self>, VcsStatusError>
     where
@@ -44,8 +50,10 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// Returns an error if `path` does not refer to a supported repository
-    /// or if the backend fails to open it.
+    /// Returns an error if:
+    ///
+    /// - `path` does not refer to a supported repository worktree
+    /// - the backend fails to open it
     #[inline]
     pub fn open<P>(path: P) -> Result<Self, VcsStatusError>
     where
@@ -59,10 +67,12 @@ impl Repository {
     #[inline]
     #[must_use]
     pub fn workdir(&self) -> &Path {
-        self.inner.workdir()
+        self.inner.worktree()
     }
 
     /// Returns the aggregate status of the repository worktree.
+    ///
+    /// Paths in the returned status are relative to [`Self::workdir`].
     ///
     /// # Errors
     ///
@@ -74,6 +84,9 @@ impl Repository {
 
     /// Returns the status of a single file `path` within the repository.
     ///
+    /// `path` is interpreted relative to [`Self::workdir`]. Redundant
+    /// separators and interior `.` components are normalized.
+    ///
     /// A file may be both staged and modified at the same time if it has
     /// staged changes and additional unstaged changes.
     ///
@@ -82,8 +95,12 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// Returns an error if `path` does not identify exactly one file status,
-    /// or if the backend fails to query it.
+    /// Returns an error if:
+    ///
+    /// - `path` is not a valid path relative to [`Self::workdir`]
+    /// - `path` does not refer to an existing file in the worktree, and the
+    ///   backend reports no matching file status
+    /// - the backend fails to query file status for any other reason
     #[inline]
     pub fn file_status<P>(&self, path: P) -> Result<FileStatus, VcsStatusError>
     where
@@ -94,15 +111,14 @@ impl Repository {
 }
 
 /// A summary of repository state relevant to `--allow-*` checks.
-#[expect(
-    missing_copy_implementations,
-    reason = "`Copy` is not part of this crate's public API contract"
-)]
+///
+/// These path sets describe repository status entries and may include tracked
+/// paths that are no longer present in the worktree.
 #[derive(Debug, Clone)]
 pub struct RepositoryStatus {
-    pub(crate) has_modified_files: bool,
-    pub(crate) has_staged_files: bool,
-    pub(crate) has_untracked_files: bool,
+    pub(crate) modified: BTreeSet<PathBuf>,
+    pub(crate) staged: BTreeSet<PathBuf>,
+    pub(crate) untracked: BTreeSet<PathBuf>,
 }
 
 impl RepositoryStatus {
@@ -112,21 +128,48 @@ impl RepositoryStatus {
     #[inline]
     #[must_use]
     pub fn has_worktree_changes(&self) -> bool {
-        self.has_modified_files
+        !self.modified.is_empty()
+    }
+
+    /// Returns the set of tracked paths with worktree changes.
+    ///
+    /// The returned paths are relative to [`Repository::workdir`].
+    #[inline]
+    #[must_use]
+    pub fn modified_files(&self) -> &BTreeSet<PathBuf> {
+        &self.modified
     }
 
     /// Returns whether the repository has staged changes in the index.
     #[inline]
     #[must_use]
     pub fn has_staged_changes(&self) -> bool {
-        self.has_staged_files
+        !self.staged.is_empty()
+    }
+
+    /// Returns the set of tracked paths with staged changes.
+    ///
+    /// The returned paths are relative to [`Repository::workdir`].
+    #[inline]
+    #[must_use]
+    pub fn staged_files(&self) -> &BTreeSet<PathBuf> {
+        &self.staged
     }
 
     /// Returns whether the repository has untracked files.
     #[inline]
     #[must_use]
     pub fn has_untracked_files(&self) -> bool {
-        self.has_untracked_files
+        !self.untracked.is_empty()
+    }
+
+    /// Returns the set of untracked paths.
+    ///
+    /// The returned paths are relative to [`Repository::workdir`].
+    #[inline]
+    #[must_use]
+    pub fn untracked_files(&self) -> &BTreeSet<PathBuf> {
+        &self.untracked
     }
 
     /// Returns whether the repository has any worktree, staged, or untracked
@@ -154,6 +197,54 @@ pub struct FileStatus {
 }
 
 impl FileStatus {
+    #[expect(
+        clippy::allow_attributes,
+        reason = "`allow` is necessary here because `unused` is only emitted when the feature is disabled"
+    )]
+    #[allow(
+        unused,
+        reason = "avoids feature-dependent `unused` warnings without introducing more complex `cfg` conditions"
+    )]
+    pub(crate) fn untracked() -> Self {
+        Self {
+            modified: false,
+            staged: false,
+            untracked: true,
+        }
+    }
+
+    #[expect(
+        clippy::allow_attributes,
+        reason = "`allow` is necessary here because `unused` is only emitted when the feature is disabled"
+    )]
+    #[allow(
+        unused,
+        reason = "avoids feature-dependent `unused` warnings without introducing more complex `cfg` conditions"
+    )]
+    pub(crate) fn tracked(modified: bool, staged: bool) -> Self {
+        Self {
+            modified,
+            staged,
+            untracked: false,
+        }
+    }
+
+    #[expect(
+        clippy::allow_attributes,
+        reason = "`allow` is necessary here because `unused` is only emitted when the feature is disabled"
+    )]
+    #[allow(
+        unused,
+        reason = "avoids feature-dependent `unused` warnings without introducing more complex `cfg` conditions"
+    )]
+    pub(crate) fn ignored() -> Self {
+        Self {
+            modified: false,
+            staged: false,
+            untracked: false,
+        }
+    }
+
     /// Returns whether the file has tracked worktree changes.
     ///
     /// This does not include staged changes or untracked files.

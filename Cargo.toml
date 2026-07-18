@@ -2,7 +2,7 @@
 name = "vcs-status"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.96.0"
 description = "A library for querying VCS working tree status."
 readme = "README.md"
 repository = "https://github.com/gifnksm/vcs-status"
@@ -29,14 +29,37 @@ rust-version = true
 github-actions = { workflows = "ci.yml" }
 codecov = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
 [dependencies]
+git2 = { version = "0.21.0", optional = true }
 snafu = "0.9.1"
 
 [dev-dependencies]
+assert_cmd = { version = "2.2.2", features = ["color"] }
+assert_fs = { version = "1.1.4", features = ["color"] }
 clap = { version = "4.6.2", features = ["derive"] }
+dunce = "1.0.5"
+rstest = { version = "0.26.1", default-features = false }
+rstest_reuse = "0.7.0"
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[features]
+default = ["git-default"]
+
+# Enable the default Git backend implementation.
+git-default = ["git-libgit2"]
+
+# Enable the libgit2 Git backend implementation.
+git-libgit2 = ["dep:git2"]
+# Forward git2's vendored-libgit2 feature to prefer linking the vendored
+# libgit2 when the backend is enabled.
+vendored-libgit2 = ["git2?/vendored-libgit2"]
 
 [lints.clippy]
 cargo = { level = "warn", priority = -1 }

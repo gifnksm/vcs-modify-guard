@@ -690,6 +690,37 @@ fn file_change_reports_modified_and_staged_file(
 
 #[apply(all_backends)]
 #[rstest]
+fn file_change_reports_deleted_file(
+    backend: &dyn VcsBackend,
+    worktree_with_deleted_file: PathInTempDir,
+) {
+    let path = worktree_with_deleted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo.file_change(Path::new(DELETED_FILE)).unwrap().unwrap();
+    AssertFileChange::new(DELETED_FILE)
+        .modified()
+        .assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_index_deleted_file(
+    backend: &dyn VcsBackend,
+    worktree_with_index_deleted_file: PathInTempDir,
+) {
+    let path = worktree_with_index_deleted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo
+        .file_change(Path::new(INDEX_DELETED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(INDEX_DELETED_FILE)
+        .staged()
+        .assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
 fn file_change_reports_untracked_file(
     backend: &dyn VcsBackend,
     worktree_with_untracked_file: PathInTempDir,
@@ -836,7 +867,7 @@ fn file_change_rejects_empty_path(
     let repo = backend.open(path).unwrap().unwrap();
 
     let err = repo.file_change(Path::new("")).unwrap_err();
-    assert_matches!(err, VcsStatusError::InvalidWorktreeRelativePath { .. });
+    assert_matches!(err, VcsStatusError::PathNotAFile { .. });
 }
 
 #[apply(all_backends)]
@@ -908,14 +939,14 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
     let repo_changes = repo.repository_changes().unwrap().unwrap();
 
     let paths = [
-        (CLEAN_FILE, None),
-        (MODIFIED_FILE, None),
-        (STAGED_FILE, None),
-        (MODIFIED_AND_STAGED_FILE, None),
-        (DELETED_FILE, Some((true, false))),
-        (INDEX_DELETED_FILE, Some((false, true))),
-        (UNTRACKED_FILE, None),
-        (IGNORED_FILE, None),
+        CLEAN_FILE,
+        MODIFIED_FILE,
+        STAGED_FILE,
+        MODIFIED_AND_STAGED_FILE,
+        DELETED_FILE,
+        INDEX_DELETED_FILE,
+        UNTRACKED_FILE,
+        IGNORED_FILE,
     ];
 
     let mut modified_count = 0;
@@ -935,17 +966,8 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
         .map(FileChange::path)
         .collect::<Vec<_>>();
 
-    for (path, deleted) in &paths {
+    for path in &paths {
         let path = Path::new(path);
-        if let Some((wt_deleted, index_deleted)) = *deleted {
-            if wt_deleted {
-                modified_count += 1;
-            }
-            if index_deleted {
-                staged_count += 1;
-            }
-            continue;
-        }
         let Some(file_change) = repo.file_change(path).unwrap() else {
             continue;
         };

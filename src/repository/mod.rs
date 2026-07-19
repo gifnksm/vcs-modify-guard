@@ -108,19 +108,24 @@ impl Repository {
         self.inner.repository_changes()
     }
 
-    /// Returns the modified, staged, or untracked change for a single file
+    /// Returns the modified, staged, or untracked change for the file path
     /// `path` within the repository, if any.
     ///
-    /// Returns `Ok(None)` if the resolved file is clean or ignored by the VCS.
+    /// Returns `Ok(None)` if the resolved file path is clean or ignored by the
+    /// VCS.
     ///
     /// If this method returns `Ok(Some(change))`, the returned [`FileChange`]
-    /// describes the resolved file.
+    /// describes the resolved file path.
     ///
-    /// `path` must resolve to an existing file within [`Self::workdir`].
-    /// Symlinks are followed, and the resolved file must also be within
-    /// [`Self::workdir`]. [`FileChange::path`] may differ from the path passed
-    /// to this method when the input reaches the same file through symlinks or
-    /// other equivalent non-canonical forms.
+    /// `path` must resolve to a path within [`Self::workdir`]. Symlinks are
+    /// followed.
+    ///
+    /// If the resolved path exists in the worktree, it must be a file.
+    /// If it does not exist in the worktree, this method may still return a
+    /// change when the path refers to a tracked file path known to the VCS,
+    /// such as a deletion change. [`FileChange::path`] may differ from the
+    /// path passed to this method when the input reaches the same file path
+    /// through symlinks or other equivalent non-canonical forms.
     ///
     /// A file may be both staged and modified at the same time if it has
     /// staged changes and additional unstaged changes.
@@ -133,7 +138,10 @@ impl Repository {
     /// Returns an error if:
     ///
     /// - `path` does not resolve to a path within [`Self::workdir`]
-    /// - `path` does not resolve to an existing file in the worktree
+    /// - the resolved path exists in the worktree but does not resolve to a
+    ///   file
+    /// - `path` does not exist in the worktree and does not refer to a tracked
+    ///   path known to the VCS
     /// - `path` could not be resolved to a canonical path for any other reason
     /// - the backend fails to query file changes for any other reason
     #[inline]
@@ -286,8 +294,8 @@ impl RepositoryChanges {
 /// returns `None` for those cases.
 ///
 /// The stored path is the worktree-relative path associated with this change
-/// in the VCS. When returned by [`Repository::repository_changes`], it may
-/// refer to a tracked path that is no longer present in the worktree.
+/// in the VCS. It may refer to a tracked path that is no longer present in the
+/// worktree.
 ///
 /// More than one predicate may return `true` for the same file. For example,
 /// a file may have staged changes and additional unstaged modifications.
@@ -303,9 +311,12 @@ impl FileChange {
     /// Returns the worktree-relative path associated with this file change in
     /// the VCS.
     ///
+    /// This may refer to a tracked path that is no longer present in the
+    /// worktree.
+    ///
     /// When this change is returned by [`Repository::file_change`], the
     /// returned path may differ from the path passed to that method when the
-    /// input reaches the same file through symlinks or other equivalent
+    /// input reaches the same path through symlinks or other equivalent
     /// non-canonical forms.
     #[inline]
     #[must_use]

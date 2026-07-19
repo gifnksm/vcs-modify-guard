@@ -8,7 +8,7 @@ use snafu::{IntoError as _, ResultExt as _, Snafu};
 use crate::{
     error::{self, VcsStatusError},
     repository::{FileChange, RepositoryChanges},
-    util,
+    util::{self, NormalizedWorktreePath},
     vcs::VcsBackend,
 };
 
@@ -139,16 +139,28 @@ impl VcsRepository for Libgit2Repository {
     }
 
     fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError> {
-        let path = util::canonicalize_to_worktree_path(&self.worktree, path)?;
-        let fs_path = self.worktree.join(&path);
-        util::ensure_path_is_file(&fs_path)?;
-        let status = match self.repo.status_file(&path) {
+        let path = util::normalize_to_worktree_path(&self.worktree, path)?;
+        match &path {
+            NormalizedWorktreePath::Existing(path) => {
+                let fs_path = self.worktree.join(path);
+                util::ensure_path_is_file(&fs_path)?;
+            }
+            NormalizedWorktreePath::Missing(_) => {}
+        }
+        let status = match self.repo.status_file(path.as_path()) {
             Ok(status) => status,
             Err(source) if source.code() == git2::ErrorCode::NotFound => {
-                // At this point the path has already been resolved to an
-                // existing file within the worktree, so `NotFound` means the
-                // file is untracked by Git rather than missing from disk.
-                return Ok(StatusFlags::untracked().build(path));
+                match &path {
+                    NormalizedWorktreePath::Existing(path) => {
+                        // At this point the path has already been resolved to an
+                        // existing file within the worktree, so `NotFound` means the
+                        // file is untracked by Git rather than missing from disk.
+                        return Ok(StatusFlags::untracked().build(path));
+                    }
+                    NormalizedWorktreePath::Missing(path) => {
+                        return Err(error::PathNotFoundSnafu { path }.build());
+                    }
+                }
             }
             Err(source) => {
                 return Err(QueryFileChangeSnafu { path }.into_error(source).into());

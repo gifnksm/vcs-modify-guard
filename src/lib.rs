@@ -49,7 +49,10 @@
 //!     }
 //!
 //!     if changes.has_modified_files() || changes.has_untracked_files() {
-//!         return Err("the target directory has uncommitted changes".into());
+//!         return Err(
+//!             "the repository containing the target directory has uncommitted changes"
+//!                 .into(),
+//!         );
 //!     }
 //!
 //!     if options.allow_staged {
@@ -57,7 +60,10 @@
 //!     }
 //!
 //!     if changes.has_staged_files() {
-//!         return Err("the target directory has staged changes".into());
+//!         return Err(
+//!             "the repository containing the target directory has staged changes"
+//!                 .into(),
+//!         );
 //!     }
 //!
 //!     Ok(())

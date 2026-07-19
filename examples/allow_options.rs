@@ -80,7 +80,7 @@ fn ensure_safe_to_modify(target_dir: &Path, options: &AllowOptions) -> Result<()
 
     if changes.has_modified_files() || changes.has_untracked_files() {
         return Err(
-            "the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
+            "the repository containing the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
         );
     }
 
@@ -90,7 +90,7 @@ fn ensure_safe_to_modify(target_dir: &Path, options: &AllowOptions) -> Result<()
 
     if changes.has_staged_files() {
         return Err(
-            "the target directory has staged changes; if you'd like to suppress this error pass `--allow-staged`".into(),
+            "the repository containing the target directory has staged changes; if you'd like to suppress this error pass `--allow-staged`".into(),
         );
     }
 

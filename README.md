@@ -12,18 +12,17 @@
 <!-- cargo-sync-rdme ]] -->
 
 <!-- cargo-sync-rdme rustdoc [[ -->
-Query the status of a VCS working tree.
+Help CLI tools decide whether it is safe to modify files in a VCS
+working tree.
 
 `vcs-status` provides a small abstraction over version control systems
-for checking whether a working tree contains worktree changes, staged
-changes, or untracked files.
-
-It is intended for CLI tools that implement options such as
+for checking whether a working tree has modified, staged, or untracked
+files. It is intended for CLI tools that implement options such as
 `--allow-dirty`, `--allow-staged`, and `--allow-no-vcs`.
 
 ## Example
 
-The following example shows how to validate the status of a repository
+The following example shows how to validate the changes in a repository
 before performing an operation that may modify files.
 
 ````rust,no_run
@@ -37,7 +36,7 @@ struct AllowOptions {
     allow_staged: bool,
 }
 
-fn ensure_repository_status(
+fn ensure_safe_to_modify(
     target_dir: &Path,
     options: &AllowOptions,
 ) -> Result<(), Box<dyn Error>> {
@@ -55,22 +54,30 @@ fn ensure_repository_status(
         return Err("no VCS found for the target directory".into());
     };
 
-    let status = repo.repository_status()?;
+    let Some(changes) = repo.repository_changes()? else {
+       return Ok(());
+    };
 
     if options.allow_dirty {
         return Ok(());
     }
 
-    if status.has_modified_files() || status.has_untracked_files() {
-        return Err("the target directory has uncommitted changes".into());
+    if changes.has_modified_files() || changes.has_untracked_files() {
+        return Err(
+            "the repository containing the target directory has uncommitted changes"
+                .into(),
+        );
     }
 
     if options.allow_staged {
         return Ok(());
     }
 
-    if status.has_staged_files() {
-        return Err("the target directory has staged changes".into());
+    if changes.has_staged_files() {
+        return Err(
+            "the repository containing the target directory has staged changes"
+                .into(),
+        );
     }
 
     Ok(())

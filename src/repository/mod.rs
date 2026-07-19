@@ -1,14 +1,14 @@
-//! Repository status query APIs.
+//! Repository change query APIs.
 //!
 //! This module provides the [`Repository`] type for discovering and querying
-//! VCS repositories, along with status result types such as
-//! [`RepositoryStatus`] and [`FileStatus`].
+//! VCS repositories, along with change result types such as
+//! [`RepositoryChanges`] and [`FileChange`].
 //!
-//! Paths returned by status queries are relative to the repository worktree.
+//! Paths returned by change queries are relative to the repository worktree.
 //!
 //! Most users will start with [`Repository::discover`] or [`Repository::open`],
-//! then query status with [`Repository::repository_status`] or
-//! [`Repository::file_status`].
+//! then query changes with [`Repository::repository_changes`] or
+//! [`Repository::file_change`].
 
 use std::{
     path::{Path, PathBuf},
@@ -23,8 +23,13 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// A version control repository that can report status relevant to
-/// `--allow-*` style checks.
+/// A handle for querying changes in a VCS repository worktree.
+///
+/// This type is used to check whether a CLI tool may safely modify files,
+/// such as for `--allow-*` style checks.
+///
+/// Repositories without a worktree, such as Git bare repositories, are not
+/// represented by this type.
 #[derive(Debug)]
 pub struct Repository {
     inner: Box<dyn VcsRepository>,
@@ -45,7 +50,7 @@ impl Repository {
     ///
     /// - a backend fails while probing `path`
     /// - the discovered repository does not provide a worktree for file
-    ///   status checks
+    ///   change checks
     #[inline]
     pub fn discover<P>(path: P) -> Result<Option<Self>, VcsStatusError>
     where
@@ -85,30 +90,36 @@ impl Repository {
         self.inner.worktree()
     }
 
-    /// Returns the aggregate status of the repository worktree.
+    /// Returns the aggregate file changes in the repository worktree.
     ///
-    /// The returned status may include files ignored by the VCS. These are
-    /// represented as clean [`FileStatus`] values; see [`FileStatus`] for
-    /// details.
+    /// Paths in the returned changes are relative to [`Self::workdir`].
     ///
-    /// Paths in the returned status are relative to [`Self::workdir`].
+    /// Returns `Ok(None)` if the repository has no modified, staged, or
+    /// untracked files. Clean tracked files are not included in this aggregate
+    /// change set. Files ignored by the VCS are also omitted because this
+    /// crate is intended for `--allow-*` style checks, which treat them the
+    /// same as clean files.
     ///
     /// # Errors
     ///
-    /// Returns an error if the backend fails to query the repository status.
+    /// Returns an error if the backend fails to query repository changes.
     #[inline]
-    pub fn repository_status(&self) -> Result<RepositoryStatus, VcsStatusError> {
-        self.inner.repository_status()
+    pub fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+        self.inner.repository_changes()
     }
 
-    /// Returns the status of a single file `path` within the repository.
+    /// Returns the modified, staged, or untracked change for a single file
+    /// `path` within the repository, if any.
+    ///
+    /// Returns `Ok(None)` if the resolved file is clean or ignored by the VCS.
+    ///
+    /// If this method returns `Ok(Some(change))`, the returned [`FileChange`]
+    /// describes the resolved file.
     ///
     /// `path` must resolve to an existing file within [`Self::workdir`].
-    /// Symlinks are followed, and the returned [`FileStatus`] describes the
-    /// resolved file.
-    ///
-    /// The returned [`FileStatus::path`] may differ from the path passed to
-    /// this method when the input reaches the same file through symlinks or
+    /// Symlinks are followed, and the resolved file must also be within
+    /// [`Self::workdir`]. [`FileChange::path`] may differ from the path passed
+    /// to this method when the input reaches the same file through symlinks or
     /// other equivalent non-canonical forms.
     ///
     /// A file may be both staged and modified at the same time if it has
@@ -124,44 +135,54 @@ impl Repository {
     /// - `path` does not resolve to a path within [`Self::workdir`]
     /// - `path` does not resolve to an existing file in the worktree
     /// - `path` could not be resolved to a canonical path for any other reason
-    /// - the backend fails to query file status for any other reason
+    /// - the backend fails to query file changes for any other reason
     #[inline]
-    pub fn file_status<P>(&self, path: P) -> Result<FileStatus, VcsStatusError>
+    pub fn file_change<P>(&self, path: P) -> Result<Option<FileChange>, VcsStatusError>
     where
         P: AsRef<Path>,
     {
-        self.inner.file_status(path.as_ref())
+        self.inner.file_change(path.as_ref())
     }
 }
 
-/// A set of file statuses produced by a repository status query.
+/// A non-empty set of file changes.
 ///
-/// File statuses are ordered by ascending worktree-relative path. Entries may
-/// include files ignored by the VCS and tracked paths that are no longer
-/// present in the worktree.
+/// Values of this type are returned by [`Repository::repository_changes`].
 ///
-/// Ignored files are represented as clean [`FileStatus`] values because
-/// `--allow-*` style checks do not treat them as a blocking state.
+/// This type contains only modified, staged, or untracked files. Clean
+/// tracked files are not included. Files ignored by the VCS are also omitted
+/// because this crate is intended for `--allow-*` style checks, which treat
+/// them the same as clean files.
+///
+/// [`Repository::repository_changes`] returns `None` instead of an empty
+/// change set.
+///
+/// File changes are ordered by ascending worktree-relative path. Entries may
+/// include tracked paths that are no longer present in the worktree.
 #[derive(Debug, Clone)]
-pub struct RepositoryStatus {
-    files: Vec<FileStatus>,
+pub struct RepositoryChanges {
+    files: Vec<FileChange>,
     num_modified_files: usize,
     num_staged_files: usize,
     num_untracked_files: usize,
 }
 
-impl RepositoryStatus {
+impl RepositoryChanges {
     #[cfg(any(test, vcs_backend_enabled))]
-    pub(crate) fn new<I>(files: I) -> Self
+    pub(crate) fn new<I>(files: I) -> Option<Self>
     where
-        I: IntoIterator<Item = FileStatus>,
+        I: IntoIterator<Item = FileChange>,
     {
         let mut files = files.into_iter().collect::<Vec<_>>();
         files.sort_by(|a, b| a.path().cmp(b.path()));
         assert!(
             files.array_windows().all(|[a, b]| a.path() != b.path()),
-            "repository status entries must be unique by path",
+            "repository change entries must be unique by path",
         );
+
+        if files.is_empty() {
+            return None;
+        }
 
         let mut num_modified_files = 0;
         let mut num_staged_files = 0;
@@ -173,18 +194,15 @@ impl RepositoryStatus {
             num_untracked_files += usize::from(file.is_untracked());
         }
 
-        Self {
+        Some(Self {
             files,
             num_modified_files,
             num_staged_files,
             num_untracked_files,
-        }
+        })
     }
 
-    /// Returns an iterator over all file statuses in this status set.
-    ///
-    /// This includes files ignored by the VCS, which are represented as clean
-    /// file statuses.
+    /// Returns an iterator over all file changes in this change set.
     ///
     /// Files are yielded in ascending worktree-relative path order.
     #[inline]
@@ -195,7 +213,7 @@ impl RepositoryStatus {
         }
     }
 
-    /// Returns an iterator over files with unstaged changes in this status
+    /// Returns an iterator over files with unstaged changes in this change
     /// set.
     ///
     /// Files are yielded in ascending worktree-relative path order.
@@ -208,7 +226,7 @@ impl RepositoryStatus {
         }
     }
 
-    /// Returns an iterator over files with staged changes in this status set.
+    /// Returns an iterator over files with staged changes in this change set.
     ///
     /// Files are yielded in ascending worktree-relative path order.
     #[inline]
@@ -220,7 +238,7 @@ impl RepositoryStatus {
         }
     }
 
-    /// Returns an iterator over untracked files in this status set.
+    /// Returns an iterator over untracked files in this change set.
     ///
     /// Files are yielded in ascending worktree-relative path order.
     #[inline]
@@ -232,7 +250,7 @@ impl RepositoryStatus {
         }
     }
 
-    /// Returns whether this status set contains any files with unstaged
+    /// Returns whether this change set contains any files with unstaged
     /// changes.
     ///
     /// This does not include staged changes or untracked files.
@@ -242,58 +260,50 @@ impl RepositoryStatus {
         self.num_modified_files > 0
     }
 
-    /// Returns whether this status set contains any files with staged changes.
+    /// Returns whether this change set contains any files with staged changes.
     #[inline]
     #[must_use]
     pub fn has_staged_files(&self) -> bool {
         self.num_staged_files > 0
     }
 
-    /// Returns whether this status set contains any untracked files.
+    /// Returns whether this change set contains any untracked files.
     #[inline]
     #[must_use]
     pub fn has_untracked_files(&self) -> bool {
         self.num_untracked_files > 0
     }
-
-    /// Returns whether this status set contains any modified, staged, or
-    /// untracked files.
-    ///
-    /// Clean file statuses, including ignored files, do not make the status
-    /// set dirty.
-    #[inline]
-    #[must_use]
-    pub fn is_dirty(&self) -> bool {
-        self.has_modified_files() || self.has_staged_files() || self.has_untracked_files()
-    }
 }
 
-/// The status of a single file within a repository.
+/// A file change within a repository.
 ///
-/// The stored path is the worktree-relative path associated with this status
-/// in the VCS. It may refer to a tracked path that is no longer present in the
-/// worktree.
+/// Values of this type are returned by [`Repository::file_change`] and yielded
+/// by iterators over [`RepositoryChanges`].
 ///
-/// Clean statuses are those for which [`Self::is_modified`],
-/// [`Self::is_staged`], and [`Self::is_untracked`] all return `false`.
-/// Files ignored by the VCS are represented as clean statuses because
-/// `--allow-*` style checks do not treat them as a blocking state.
+/// Instances of this type always represent a modified, staged, or untracked
+/// file, or a combination of those states. Clean tracked files and files
+/// ignored by the VCS are not represented; [`Repository::file_change`]
+/// returns `None` for those cases.
+///
+/// The stored path is the worktree-relative path associated with this change
+/// in the VCS. When returned by [`Repository::repository_changes`], it may
+/// refer to a tracked path that is no longer present in the worktree.
 ///
 /// More than one predicate may return `true` for the same file. For example,
 /// a file may have staged changes and additional unstaged modifications.
 #[derive(Debug, Clone)]
-pub struct FileStatus {
+pub struct FileChange {
     pub(crate) path: PathBuf,
     pub(crate) modified: bool,
     pub(crate) staged: bool,
     pub(crate) untracked: bool,
 }
 
-impl FileStatus {
-    /// Returns the worktree-relative path associated with this file status in
+impl FileChange {
+    /// Returns the worktree-relative path associated with this file change in
     /// the VCS.
     ///
-    /// When this status is returned by [`Repository::file_status`], the
+    /// When this change is returned by [`Repository::file_change`], the
     /// returned path may differ from the path passed to that method when the
     /// input reaches the same file through symlinks or other equivalent
     /// non-canonical forms.
@@ -325,29 +335,19 @@ impl FileStatus {
     pub fn is_untracked(&self) -> bool {
         self.untracked
     }
-
-    /// Returns whether the file is modified, staged, or untracked.
-    ///
-    /// This returns `false` for clean files, including files ignored by the
-    /// VCS.
-    #[inline]
-    #[must_use]
-    pub fn is_dirty(&self) -> bool {
-        self.is_modified() || self.is_staged() || self.is_untracked()
-    }
 }
 
-/// An iterator over all file statuses in a [`RepositoryStatus`].
+/// An iterator over all file changes in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryStatus::files`] method.
+/// This struct is created by the [`RepositoryChanges::files`] method.
 /// Files are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct Files<'a> {
-    iter: slice::Iter<'a, FileStatus>,
+    iter: slice::Iter<'a, FileChange>,
 }
 
 impl<'a> Iterator for Files<'a> {
-    type Item = &'a FileStatus;
+    type Item = &'a FileChange;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -374,18 +374,18 @@ impl ExactSizeIterator for Files<'_> {
     }
 }
 
-/// An iterator over files with unstaged changes in a [`RepositoryStatus`].
+/// An iterator over files with unstaged changes in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryStatus::modified_files`] method.
+/// This struct is created by the [`RepositoryChanges::modified_files`] method.
 /// Files are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct ModifiedFiles<'a> {
-    iter: slice::Iter<'a, FileStatus>,
+    iter: slice::Iter<'a, FileChange>,
     len: usize,
 }
 
 impl<'a> Iterator for ModifiedFiles<'a> {
-    type Item = &'a FileStatus;
+    type Item = &'a FileChange;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -416,18 +416,18 @@ impl ExactSizeIterator for ModifiedFiles<'_> {
     }
 }
 
-/// An iterator over files with staged changes in a [`RepositoryStatus`].
+/// An iterator over files with staged changes in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryStatus::staged_files`] method.
+/// This struct is created by the [`RepositoryChanges::staged_files`] method.
 /// Files are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct StagedFiles<'a> {
-    iter: slice::Iter<'a, FileStatus>,
+    iter: slice::Iter<'a, FileChange>,
     len: usize,
 }
 
 impl<'a> Iterator for StagedFiles<'a> {
-    type Item = &'a FileStatus;
+    type Item = &'a FileChange;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -458,18 +458,18 @@ impl ExactSizeIterator for StagedFiles<'_> {
     }
 }
 
-/// An iterator over untracked files in a [`RepositoryStatus`].
+/// An iterator over untracked files in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryStatus::untracked_files`] method.
+/// This struct is created by the [`RepositoryChanges::untracked_files`] method.
 /// Files are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct UntrackedFiles<'a> {
-    iter: slice::Iter<'a, FileStatus>,
+    iter: slice::Iter<'a, FileChange>,
     len: usize,
 }
 
 impl<'a> Iterator for UntrackedFiles<'a> {
-    type Item = &'a FileStatus;
+    type Item = &'a FileChange;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {

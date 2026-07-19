@@ -2,7 +2,7 @@ use std::{fmt::Debug, path::Path};
 
 use crate::{
     error::{self, VcsStatusError},
-    repository::{FileStatus, RepositoryStatus},
+    repository::{FileChange, RepositoryChanges},
 };
 
 #[cfg(feature = "git-libgit2")]
@@ -43,8 +43,8 @@ pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, VcsStatusError
 
 pub(crate) trait VcsRepository: Debug {
     fn worktree(&self) -> &Path;
-    fn repository_status(&self) -> Result<RepositoryStatus, VcsStatusError>;
-    fn file_status(&self, path: &Path) -> Result<FileStatus, VcsStatusError>;
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError>;
+    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError>;
 }
 
 // assert that VcsRepository is dyn safe

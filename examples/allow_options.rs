@@ -16,15 +16,17 @@ struct Args {
     #[arg(long)]
     allow_no_vcs: bool,
 
-    /// Process code even if the working directory is dirty or has staged changes.
+    /// Process code even if the containing repository has modified, staged,
+    /// or untracked files.
     #[arg(long)]
     allow_dirty: bool,
 
-    /// Process code even if the working directory has staged changes.
+    /// Process code even if the containing repository has staged changes.
     #[arg(long)]
     allow_staged: bool,
 
     /// Target directory to process. Defaults to the current working directory.
+    /// The repository containing this directory will be checked.
     #[arg(long)]
     target_dir: Option<PathBuf>,
 }
@@ -39,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         allow_dirty: args.allow_dirty,
     };
 
-    ensure_repository_status(target_dir, &options)?;
+    ensure_safe_to_modify(target_dir, &options)?;
 
     eprintln!("Proceeding...");
 
@@ -52,10 +54,7 @@ struct AllowOptions {
     allow_staged: bool,
 }
 
-fn ensure_repository_status(
-    target_dir: &Path,
-    options: &AllowOptions,
-) -> Result<(), Box<dyn Error>> {
+fn ensure_safe_to_modify(target_dir: &Path, options: &AllowOptions) -> Result<(), Box<dyn Error>> {
     // Match `cargo fix` exactly:
     // - `--allow-no-vcs` allows running even when no repository is found.
     // - `--allow-dirty` allows worktree changes, staged changes, and
@@ -71,15 +70,17 @@ fn ensure_repository_status(
         return Err("no VCS found for the target directory; if you'd like to suppress this error pass `--allow-no-vcs`".into());
     };
 
-    let status = repo.repository_status()?;
+    let Some(changes) = repo.repository_changes()? else {
+        return Ok(());
+    };
 
     if options.allow_dirty {
         return Ok(());
     }
 
-    if status.has_modified_files() || status.has_untracked_files() {
+    if changes.has_modified_files() || changes.has_untracked_files() {
         return Err(
-            "the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
+            "the repository containing the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
         );
     }
 
@@ -87,9 +88,9 @@ fn ensure_repository_status(
         return Ok(());
     }
 
-    if status.has_staged_files() {
+    if changes.has_staged_files() {
         return Err(
-            "the target directory has staged changes; if you'd like to suppress this error pass `--allow-staged`".into(),
+            "the repository containing the target directory has staged changes; if you'd like to suppress this error pass `--allow-staged`".into(),
         );
     }
 

@@ -13,37 +13,37 @@ use assert_fs::{
     fixture::{ChildPath, PathChild},
 };
 
-use crate::repository::{FileStatus, RepositoryStatus};
+use crate::repository::{FileChange, RepositoryChanges};
 
 #[must_use]
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(crate) struct AssertRepositoryStatus {
-    files: BTreeMap<PathBuf, AssertFileStatus>,
+pub(crate) struct AssertRepositoryChanges {
+    files: BTreeMap<PathBuf, AssertFileChange>,
     modified: BTreeSet<PathBuf>,
     staged: BTreeSet<PathBuf>,
     untracked: BTreeSet<PathBuf>,
 }
 
-impl From<RepositoryStatus> for AssertRepositoryStatus {
-    fn from(status: RepositoryStatus) -> Self {
+impl From<RepositoryChanges> for AssertRepositoryChanges {
+    fn from(changes: RepositoryChanges) -> Self {
         fn collect_path<'a, I>(iter: I) -> BTreeSet<PathBuf>
         where
-            I: IntoIterator<Item = &'a FileStatus>,
+            I: IntoIterator<Item = &'a FileChange>,
         {
             iter.into_iter().map(|file| file.path.clone()).collect()
         }
 
-        let files = status
+        let files = changes
             .files()
-            .map(|file| (file.path().to_owned(), AssertFileStatus::from(file.clone())))
+            .map(|file| (file.path().to_owned(), AssertFileChange::from(file.clone())))
             .collect();
 
-        let paths = collect_path(status.files());
-        let modified = collect_path(status.modified_files());
+        let paths = collect_path(changes.files());
+        let modified = collect_path(changes.modified_files());
         assert!(modified.is_subset(&paths));
-        let staged = collect_path(status.staged_files());
+        let staged = collect_path(changes.staged_files());
         assert!(staged.is_subset(&paths));
-        let untracked = collect_path(status.untracked_files());
+        let untracked = collect_path(changes.untracked_files());
         assert!(untracked.is_subset(&paths));
 
         Self {
@@ -55,7 +55,7 @@ impl From<RepositoryStatus> for AssertRepositoryStatus {
     }
 }
 
-impl AssertRepositoryStatus {
+impl AssertRepositoryChanges {
     pub(crate) fn modified<I, P>(mut self, paths: I) -> Self
     where
         I: IntoIterator<Item = P>,
@@ -66,7 +66,7 @@ impl AssertRepositoryStatus {
             let file = self
                 .files
                 .entry(path.clone())
-                .or_insert_with(|| AssertFileStatus::new(path.clone()));
+                .or_insert_with(|| AssertFileChange::new(path.clone()));
             file.modified = true;
             self.modified.insert(path);
         }
@@ -83,7 +83,7 @@ impl AssertRepositoryStatus {
             let file = self
                 .files
                 .entry(path.clone())
-                .or_insert_with(|| AssertFileStatus::new(path.clone()));
+                .or_insert_with(|| AssertFileChange::new(path.clone()));
             file.staged = true;
             self.staged.insert(path);
         }
@@ -100,50 +100,37 @@ impl AssertRepositoryStatus {
             let file = self
                 .files
                 .entry(path.clone())
-                .or_insert_with(|| AssertFileStatus::new(path.clone()));
+                .or_insert_with(|| AssertFileChange::new(path.clone()));
             file.untracked = true;
             self.untracked.insert(path);
         }
         self
     }
 
-    pub(crate) fn ignored<I, P>(mut self, paths: I) -> Self
-    where
-        I: IntoIterator<Item = P>,
-        P: Into<PathBuf>,
-    {
-        for path in paths {
-            let path = path.into();
-            self.files
-                .entry(path.clone())
-                .or_insert_with(|| AssertFileStatus::new(path.clone()));
-        }
-        self
-    }
-
     #[track_caller]
-    pub(crate) fn assert(self, actual: RepositoryStatus) {
-        assert_eq!(Self::from(actual), self);
+    pub(crate) fn assert(self, actual: RepositoryChanges) {
+        let actual = Self::from(actual);
+        assert_eq!(actual, self);
     }
 }
 
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct AssertFileStatus {
+pub(crate) struct AssertFileChange {
     path: PathBuf,
     modified: bool,
     staged: bool,
     untracked: bool,
 }
 
-impl From<FileStatus> for AssertFileStatus {
-    fn from(status: FileStatus) -> Self {
-        let FileStatus {
+impl From<FileChange> for AssertFileChange {
+    fn from(change: FileChange) -> Self {
+        let FileChange {
             path,
             modified,
             staged,
             untracked,
-        } = status;
+        } = change;
         Self {
             path,
             modified,
@@ -153,7 +140,7 @@ impl From<FileStatus> for AssertFileStatus {
     }
 }
 
-impl AssertFileStatus {
+impl AssertFileChange {
     pub(crate) fn new<P>(path: P) -> Self
     where
         P: Into<PathBuf>,
@@ -182,8 +169,9 @@ impl AssertFileStatus {
     }
 
     #[track_caller]
-    pub(crate) fn assert(self, actual: FileStatus) {
-        assert_eq!(Self::from(actual), self);
+    pub(crate) fn assert(self, actual: FileChange) {
+        let actual = Self::from(actual);
+        assert_eq!(actual, self);
     }
 }
 

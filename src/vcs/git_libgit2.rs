@@ -7,7 +7,7 @@ use snafu::{IntoError as _, ResultExt as _, Snafu};
 
 use crate::{
     error::{self, VcsStatusError},
-    repository::{FileStatus, RepositoryStatus},
+    repository::{FileChange, RepositoryChanges},
     util,
     vcs::VcsBackend,
 };
@@ -39,18 +39,18 @@ pub enum Libgit2BackendError {
         /// The underlying error from `libgit2`.
         source: git2::Error,
     },
-    /// Querying repository status failed.
-    #[snafu(display("failed to query git repository status for worktree: {}", worktree.display()))]
-    QueryRepositoryStatus {
+    /// Querying repository changes failed.
+    #[snafu(display("failed to query git repository changes for worktree: {}", worktree.display()))]
+    QueryRepositoryChanges {
         /// The worktree of the Git repository.
         worktree: PathBuf,
         /// The underlying error from `libgit2`.
         source: git2::Error,
     },
-    /// Querying file status failed.
-    #[snafu(display("failed to query git file status for path: {}", path.display()))]
-    QueryFileStatus {
-        /// The path of the file whose status was being retrieved.
+    /// Querying file change failed.
+    #[snafu(display("failed to query git file change for path: {}", path.display()))]
+    QueryFileChange {
+        /// The path of the file whose change was being retrieved.
         path: PathBuf,
         /// The underlying error from `libgit2`.
         source: git2::Error,
@@ -119,26 +119,26 @@ impl VcsRepository for Libgit2Repository {
         &self.worktree
     }
 
-    fn repository_status(&self) -> Result<RepositoryStatus, VcsStatusError> {
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
         let mut repo_opts = git2::StatusOptions::new();
-        repo_opts.include_ignored(true);
         repo_opts.include_untracked(true);
+        repo_opts.recurse_untracked_dirs(true);
         let entries =
             self.repo
                 .statuses(Some(&mut repo_opts))
-                .context(QueryRepositoryStatusSnafu {
+                .context(QueryRepositoryChangesSnafu {
                     worktree: &self.worktree,
                 })?;
         let file_entries = entries.iter().filter_map(|entry| {
             // Match `cargo fix`: ignore status entries whose paths cannot be represented as UTF-8.
             let path = entry.path().ok()?;
-            Some(StatusFlags::from(entry.status()).build(path))
+            StatusFlags::from(entry.status()).build(path)
         });
 
-        Ok(RepositoryStatus::new(file_entries))
+        Ok(RepositoryChanges::new(file_entries))
     }
 
-    fn file_status(&self, path: &Path) -> Result<FileStatus, VcsStatusError> {
+    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError> {
         let path = util::canonicalize_to_worktree_path(&self.worktree, path)?;
         let fs_path = self.worktree.join(&path);
         util::ensure_path_is_file(&fs_path)?;
@@ -151,7 +151,7 @@ impl VcsRepository for Libgit2Repository {
                 return Ok(StatusFlags::untracked().build(path));
             }
             Err(source) => {
-                return Err(QueryFileStatusSnafu { path }.into_error(source).into());
+                return Err(QueryFileChangeSnafu { path }.into_error(source).into());
             }
         };
         Ok(StatusFlags::from(status).build(path))
@@ -167,9 +167,6 @@ struct StatusFlags {
 
 impl From<git2::Status> for StatusFlags {
     fn from(status: git2::Status) -> Self {
-        if status.is_ignored() {
-            return Self::ignored();
-        }
         if status.is_wt_new() {
             return Self::untracked();
         }
@@ -203,15 +200,7 @@ impl StatusFlags {
         }
     }
 
-    fn ignored() -> Self {
-        Self {
-            modified: false,
-            staged: false,
-            untracked: false,
-        }
-    }
-
-    fn build<P>(self, path: P) -> FileStatus
+    fn build<P>(self, path: P) -> Option<FileChange>
     where
         P: Into<PathBuf>,
     {
@@ -220,12 +209,16 @@ impl StatusFlags {
             staged,
             untracked,
         } = self;
+        if !modified && !staged && !untracked {
+            return None;
+        }
+
         let path = path.into();
-        FileStatus {
+        Some(FileChange {
             path,
             modified,
             staged,
             untracked,
-        }
+        })
     }
 }

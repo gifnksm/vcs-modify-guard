@@ -4,25 +4,12 @@ use rstest::*;
 
 use super::*;
 
-fn clean_file<P>(path: P) -> FileStatus
+fn modified_file<P>(path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     let path = path.into();
-    FileStatus {
-        path,
-        modified: false,
-        staged: false,
-        untracked: false,
-    }
-}
-
-fn modified_file<P>(path: P) -> FileStatus
-where
-    P: Into<PathBuf>,
-{
-    let path = path.into();
-    FileStatus {
+    FileChange {
         path,
         modified: true,
         staged: false,
@@ -30,12 +17,12 @@ where
     }
 }
 
-fn staged_file<P>(path: P) -> FileStatus
+fn staged_file<P>(path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     let path = path.into();
-    FileStatus {
+    FileChange {
         path,
         modified: false,
         staged: true,
@@ -43,12 +30,12 @@ where
     }
 }
 
-fn modified_and_staged_file<P>(path: P) -> FileStatus
+fn modified_and_staged_file<P>(path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     let path = path.into();
-    FileStatus {
+    FileChange {
         path,
         modified: true,
         staged: true,
@@ -56,12 +43,12 @@ where
     }
 }
 
-fn untracked_file<P>(path: P) -> FileStatus
+fn untracked_file<P>(path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     let path = path.into();
-    FileStatus {
+    FileChange {
         path,
         modified: false,
         staged: false,
@@ -70,11 +57,8 @@ where
 }
 
 #[fixture]
-fn mixed_repository_status() -> RepositoryStatus {
+fn mixed_repository_changes() -> RepositoryChanges {
     let mut files = vec![];
-    for i in 0..3 {
-        files.push(clean_file(format!("{i}.clean.txt")));
-    }
     for i in 0..4 {
         files.push(modified_file(format!("{i}.modified.txt")));
     }
@@ -89,26 +73,28 @@ fn mixed_repository_status() -> RepositoryStatus {
     for i in 0..5 {
         files.push(untracked_file(format!("{i}.untracked.txt")));
     }
-    RepositoryStatus::new(files)
+    RepositoryChanges::new(files).unwrap()
 }
 
 #[track_caller]
 fn assert_files_sorted<'a, I>(files: I)
 where
-    I: Iterator<Item = &'a FileStatus>,
+    I: Iterator<Item = &'a FileChange>,
 {
     let files = files.collect::<Vec<_>>();
     assert!(files.is_sorted_by(|a, b| a.path() < b.path()));
 }
 
 #[rstest]
-fn repository_status_files_returns_sorted_unique_files(mixed_repository_status: RepositoryStatus) {
-    let status = mixed_repository_status;
+fn repository_changes_files_returns_sorted_unique_files(
+    mixed_repository_changes: RepositoryChanges,
+) {
+    let changes = mixed_repository_changes;
 
-    assert_files_sorted(status.files());
-    assert_files_sorted(status.modified_files());
-    assert_files_sorted(status.staged_files());
-    assert_files_sorted(status.untracked_files());
+    assert_files_sorted(changes.files());
+    assert_files_sorted(changes.modified_files());
+    assert_files_sorted(changes.staged_files());
+    assert_files_sorted(changes.untracked_files());
 }
 
 #[track_caller]
@@ -140,28 +126,28 @@ where
 #[track_caller]
 fn assert_iterator_properties<'a, I, J>(files: I)
 where
-    I: IntoIterator<Item = &'a FileStatus, IntoIter = J> + Clone,
-    J: DoubleEndedIterator<Item = &'a FileStatus> + ExactSizeIterator + Clone,
+    I: IntoIterator<Item = &'a FileChange, IntoIter = J> + Clone,
+    J: DoubleEndedIterator<Item = &'a FileChange> + ExactSizeIterator + Clone,
 {
     let files = files.into_iter();
-    assert_double_ended_iterator_properties(files.clone().map(FileStatus::path));
-    assert_exact_size_iterator_properties(files.clone().map(FileStatus::path));
-    assert_exact_size_iterator_properties(files.clone().rev().map(FileStatus::path));
+    assert_double_ended_iterator_properties(files.clone().map(FileChange::path));
+    assert_exact_size_iterator_properties(files.clone().map(FileChange::path));
+    assert_exact_size_iterator_properties(files.clone().rev().map(FileChange::path));
 }
 
 #[rstest]
-fn repository_status_satisfies_iterator_properties(mixed_repository_status: RepositoryStatus) {
-    let status = mixed_repository_status;
+fn repository_changes_satisfies_iterator_properties(mixed_repository_changes: RepositoryChanges) {
+    let changes = mixed_repository_changes;
 
-    assert_iterator_properties(status.files());
-    assert_eq!(status.files().len(), status.files.len());
+    assert_iterator_properties(changes.files());
+    assert_eq!(changes.files().len(), changes.files.len());
 
-    assert_iterator_properties(status.modified_files());
-    assert_eq!(status.modified_files().len(), status.num_modified_files);
+    assert_iterator_properties(changes.modified_files());
+    assert_eq!(changes.modified_files().len(), changes.num_modified_files);
 
-    assert_iterator_properties(status.staged_files());
-    assert_eq!(status.staged_files().len(), status.num_staged_files);
+    assert_iterator_properties(changes.staged_files());
+    assert_eq!(changes.staged_files().len(), changes.num_staged_files);
 
-    assert_iterator_properties(status.untracked_files());
-    assert_eq!(status.untracked_files().len(), status.num_untracked_files);
+    assert_iterator_properties(changes.untracked_files());
+    assert_eq!(changes.untracked_files().len(), changes.num_untracked_files);
 }

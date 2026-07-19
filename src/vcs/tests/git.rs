@@ -11,8 +11,8 @@ use rstest_reuse::*;
 
 use crate::{
     VcsStatusError,
-    repository::FileStatus,
-    testing::{AssertFileStatus, AssertRepositoryStatus, PathInTempDir},
+    repository::FileChange,
+    testing::{AssertFileChange, AssertRepositoryChanges, PathInTempDir},
     vcs::{self, VcsBackend},
 };
 
@@ -228,6 +228,9 @@ fn worktree_with_symlink() -> PathInTempDir {
     std::os::unix::fs::symlink(CLEAN_FILE, path.path().join(SYMLINK_FILE)).unwrap();
     git_add(&path, ["."]).success();
     git_commit(&path).success();
+    path.child(CLEAN_FILE)
+        .write_str("Modified content")
+        .unwrap();
     path
 }
 
@@ -478,405 +481,431 @@ fn open_returns_err_for_inaccessible_path(
 
 #[apply(all_backends)]
 #[rstest]
-fn status_reports_nothing_for_clean_worktree(
+fn repository_changes_returns_none_for_clean_worktree(
     backend: &dyn VcsBackend,
     clean_worktree: PathInTempDir,
 ) {
     let path = clean_worktree.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default().assert(status);
+    let changes = repo.repository_changes().unwrap();
+    assert!(changes.is_none());
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn status_reports_modified_file(
+fn repository_changes_reports_modified_file(
     backend: &dyn VcsBackend,
     worktree_with_modified_file: PathInTempDir,
 ) {
     let path = worktree_with_modified_file.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
         .modified([MODIFIED_FILE])
-        .assert(status);
+        .assert(changes);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn status_reports_staged_file(backend: &dyn VcsBackend, worktree_with_staged_file: PathInTempDir) {
-    let path = worktree_with_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .staged([STAGED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_modified_and_staged_file(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_and_staged_file: PathInTempDir,
-) {
-    let path = worktree_with_modified_and_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .modified([MODIFIED_AND_STAGED_FILE])
-        .staged([MODIFIED_AND_STAGED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_deleted_file(
-    backend: &dyn VcsBackend,
-    worktree_with_deleted_file: PathInTempDir,
-) {
-    let path = worktree_with_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .modified([DELETED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_index_deleted_file(
-    backend: &dyn VcsBackend,
-    worktree_with_index_deleted_file: PathInTempDir,
-) {
-    let path = worktree_with_index_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .staged([INDEX_DELETED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_untracked_file(
-    backend: &dyn VcsBackend,
-    worktree_with_untracked_file: PathInTempDir,
-) {
-    let path = worktree_with_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .untracked([UNTRACKED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_nothing_for_worktree_with_ignored_file(
-    backend: &dyn VcsBackend,
-    worktree_with_ignored_file: PathInTempDir,
-) {
-    let path = worktree_with_ignored_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .ignored([IGNORED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_mixed_changes(
-    backend: &dyn VcsBackend,
-    worktree_with_mixed_changes: PathInTempDir,
-) {
-    let path = worktree_with_mixed_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .modified([MODIFIED_FILE, MODIFIED_AND_STAGED_FILE, DELETED_FILE])
-        .staged([STAGED_FILE, MODIFIED_AND_STAGED_FILE, INDEX_DELETED_FILE])
-        .untracked([UNTRACKED_FILE])
-        .ignored([IGNORED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_modified_file_in_subdir(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_subdir: PathInTempDir,
-) {
-    let path = worktree_with_modified_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .modified([SUBDIR_MODIFIED_FILE])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn status_reports_untracked_file_in_subdir_as_untracked_dir(
-    backend: &dyn VcsBackend,
-    worktree_with_untracked_subdir: PathInTempDir,
-) {
-    let path = worktree_with_untracked_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.repository_status().unwrap();
-    AssertRepositoryStatus::default()
-        .untracked(["subdir/"])
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_status_reports_nothing_for_clean_file(
-    backend: &dyn VcsBackend,
-    clean_worktree: PathInTempDir,
-) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(CLEAN_FILE)).unwrap();
-    AssertFileStatus::new(CLEAN_FILE).assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_status_reports_modified_file(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_file: PathInTempDir,
-) {
-    let path = worktree_with_modified_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(MODIFIED_FILE)).unwrap();
-    AssertFileStatus::new(MODIFIED_FILE)
-        .modified()
-        .assert(status);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_status_reports_staged_file(
+fn repository_changes_reports_staged_file(
     backend: &dyn VcsBackend,
     worktree_with_staged_file: PathInTempDir,
 ) {
     let path = worktree_with_staged_file.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(STAGED_FILE)).unwrap();
-    AssertFileStatus::new(STAGED_FILE).staged().assert(status);
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .staged([STAGED_FILE])
+        .assert(changes);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_modified_and_staged_file(
+fn repository_changes_reports_modified_and_staged_file(
     backend: &dyn VcsBackend,
     worktree_with_modified_and_staged_file: PathInTempDir,
 ) {
     let path = worktree_with_modified_and_staged_file.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo
-        .file_status(Path::new(MODIFIED_AND_STAGED_FILE))
-        .unwrap();
-    AssertFileStatus::new(MODIFIED_AND_STAGED_FILE)
-        .modified()
-        .staged()
-        .assert(status);
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([MODIFIED_AND_STAGED_FILE])
+        .staged([MODIFIED_AND_STAGED_FILE])
+        .assert(changes);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_untracked_file(
+fn repository_changes_reports_deleted_file(
+    backend: &dyn VcsBackend,
+    worktree_with_deleted_file: PathInTempDir,
+) {
+    let path = worktree_with_deleted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([DELETED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn repository_changes_reports_index_deleted_file(
+    backend: &dyn VcsBackend,
+    worktree_with_index_deleted_file: PathInTempDir,
+) {
+    let path = worktree_with_index_deleted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .staged([INDEX_DELETED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn repository_changes_reports_untracked_file(
     backend: &dyn VcsBackend,
     worktree_with_untracked_file: PathInTempDir,
 ) {
     let path = worktree_with_untracked_file.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(UNTRACKED_FILE)).unwrap();
-    AssertFileStatus::new(UNTRACKED_FILE)
-        .untracked()
-        .assert(status);
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .untracked([UNTRACKED_FILE])
+        .assert(changes);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_nothing_for_ignored_file(
+fn repository_changes_returns_none_for_worktree_with_ignored_file(
     backend: &dyn VcsBackend,
     worktree_with_ignored_file: PathInTempDir,
 ) {
     let path = worktree_with_ignored_file.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(IGNORED_FILE)).unwrap();
-    AssertFileStatus::new(IGNORED_FILE).assert(status);
+    let changes = repo.repository_changes().unwrap();
+    assert!(changes.is_none());
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_mixed_changes(
+fn repository_changes_reports_mixed_changes(
+    backend: &dyn VcsBackend,
+    worktree_with_mixed_changes: PathInTempDir,
+) {
+    let path = worktree_with_mixed_changes.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([MODIFIED_FILE, MODIFIED_AND_STAGED_FILE, DELETED_FILE])
+        .staged([STAGED_FILE, MODIFIED_AND_STAGED_FILE, INDEX_DELETED_FILE])
+        .untracked([UNTRACKED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn repository_changes_reports_modified_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_subdir: PathInTempDir,
+) {
+    let path = worktree_with_modified_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([SUBDIR_MODIFIED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn repository_changes_reports_untracked_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_untracked_subdir: PathInTempDir,
+) {
+    let path = worktree_with_untracked_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .untracked([SUBDIR_UNTRACKED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_returns_none_for_clean_file(
+    backend: &dyn VcsBackend,
+    clean_worktree: PathInTempDir,
+) {
+    let path = clean_worktree.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo.file_change(Path::new(CLEAN_FILE)).unwrap();
+    assert!(change.is_none());
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_modified_file(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_file: PathInTempDir,
+) {
+    let path = worktree_with_modified_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
+    AssertFileChange::new(MODIFIED_FILE)
+        .modified()
+        .assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_staged_file(
+    backend: &dyn VcsBackend,
+    worktree_with_staged_file: PathInTempDir,
+) {
+    let path = worktree_with_staged_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo.file_change(Path::new(STAGED_FILE)).unwrap().unwrap();
+    AssertFileChange::new(STAGED_FILE).staged().assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_modified_and_staged_file(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_and_staged_file: PathInTempDir,
+) {
+    let path = worktree_with_modified_and_staged_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo
+        .file_change(Path::new(MODIFIED_AND_STAGED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
+        .modified()
+        .staged()
+        .assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_untracked_file(
+    backend: &dyn VcsBackend,
+    worktree_with_untracked_file: PathInTempDir,
+) {
+    let path = worktree_with_untracked_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo
+        .file_change(Path::new(UNTRACKED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(UNTRACKED_FILE)
+        .untracked()
+        .assert(change);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_returns_none_for_ignored_file(
+    backend: &dyn VcsBackend,
+    worktree_with_ignored_file: PathInTempDir,
+) {
+    let path = worktree_with_ignored_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo.file_change(Path::new(IGNORED_FILE)).unwrap();
+    assert!(change.is_none());
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_mixed_changes(
     backend: &dyn VcsBackend,
     worktree_with_mixed_changes: PathInTempDir,
 ) {
     let path = worktree_with_mixed_changes.path();
     let repo = backend.open(path).unwrap().unwrap();
 
-    let status = repo.file_status(Path::new(CLEAN_FILE)).unwrap();
-    AssertFileStatus::new(CLEAN_FILE).assert(status);
+    let change = repo.file_change(Path::new(CLEAN_FILE)).unwrap();
+    assert!(change.is_none());
 
-    let status = repo.file_status(Path::new(MODIFIED_FILE)).unwrap();
-    AssertFileStatus::new(MODIFIED_FILE)
+    let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
+    AssertFileChange::new(MODIFIED_FILE)
         .modified()
-        .assert(status);
+        .assert(change);
 
-    let status = repo.file_status(Path::new(STAGED_FILE)).unwrap();
-    AssertFileStatus::new(STAGED_FILE).staged().assert(status);
+    let change = repo.file_change(Path::new(STAGED_FILE)).unwrap().unwrap();
+    AssertFileChange::new(STAGED_FILE).staged().assert(change);
 
-    let status = repo
-        .file_status(Path::new(MODIFIED_AND_STAGED_FILE))
+    let change = repo
+        .file_change(Path::new(MODIFIED_AND_STAGED_FILE))
+        .unwrap()
         .unwrap();
-    AssertFileStatus::new(MODIFIED_AND_STAGED_FILE)
+    AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
         .modified()
         .staged()
-        .assert(status);
+        .assert(change);
 
-    let status = repo.file_status(Path::new(UNTRACKED_FILE)).unwrap();
-    AssertFileStatus::new(UNTRACKED_FILE)
+    let change = repo
+        .file_change(Path::new(UNTRACKED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(UNTRACKED_FILE)
         .untracked()
-        .assert(status);
+        .assert(change);
 
-    let status = repo.file_status(Path::new(IGNORED_FILE)).unwrap();
-    AssertFileStatus::new(IGNORED_FILE).assert(status);
+    let change = repo.file_change(Path::new(IGNORED_FILE)).unwrap();
+    assert!(change.is_none());
 }
 
 #[cfg(unix)]
 #[apply(all_backends)]
 #[rstest]
-fn file_status_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink: PathInTempDir) {
+fn file_change_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink: PathInTempDir) {
     let path = worktree_with_symlink.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(SYMLINK_FILE)).unwrap();
-    AssertFileStatus::new(CLEAN_FILE).assert(status);
+    let change = repo.file_change(Path::new(SYMLINK_FILE)).unwrap().unwrap();
+    AssertFileChange::new(CLEAN_FILE).modified().assert(change);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_rejects_non_existent_file(backend: &dyn VcsBackend, clean_worktree: PathInTempDir) {
+fn file_change_rejects_non_existent_file(backend: &dyn VcsBackend, clean_worktree: PathInTempDir) {
     let path = clean_worktree.path();
     let repo = backend.open(path).unwrap().unwrap();
     let err = repo
-        .file_status(Path::new("non_existent_file.txt"))
+        .file_change(Path::new("non_existent_file.txt"))
         .unwrap_err();
     assert_matches!(err, VcsStatusError::PathNotFound { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_returns_canonicalized_path(
+fn file_change_returns_canonicalized_path(
     backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
+    worktree_with_modified_subdir: PathInTempDir,
 ) {
-    let repo_path = clean_worktree_with_subdir.path();
+    let repo_path = worktree_with_modified_subdir.path();
     let dir_name = repo_path.file_name().unwrap().to_str().unwrap();
     let repo = backend.open(repo_path).unwrap().unwrap();
 
-    let path = PathBuf::from(format!("subdir//{CLEAN_FILE}"));
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = PathBuf::from(format!("subdir//{MODIFIED_FILE}"));
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 
-    let path = PathBuf::from(format!("./{SUBDIR_CLEAN_FILE}"));
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = PathBuf::from(format!("./{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 
-    let path = PathBuf::from(format!("subdir/./{CLEAN_FILE}"));
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = PathBuf::from(format!("subdir/./{MODIFIED_FILE}"));
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 
-    let path = PathBuf::from(format!("../{dir_name}/{SUBDIR_CLEAN_FILE}"));
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = PathBuf::from(format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 
-    let path = PathBuf::from(format!("subdir/../{SUBDIR_CLEAN_FILE}"));
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = PathBuf::from(format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 
-    let path = repo_path.join(SUBDIR_CLEAN_FILE);
-    let status = repo.file_status(&path).unwrap();
-    AssertFileStatus::new(SUBDIR_CLEAN_FILE).assert(status);
+    let path = repo_path.join(SUBDIR_MODIFIED_FILE);
+    let change = repo.file_change(&path).unwrap().unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
+        .modified()
+        .assert(change);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_rejects_empty_path(
+fn file_change_rejects_empty_path(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
     let path = clean_worktree_with_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
 
-    let err = repo.file_status(Path::new("")).unwrap_err();
+    let err = repo.file_change(Path::new("")).unwrap_err();
     assert_matches!(err, VcsStatusError::InvalidWorktreeRelativePath { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_modified_file_in_subdir(
+fn file_change_reports_modified_file_in_subdir(
     backend: &dyn VcsBackend,
     worktree_with_modified_subdir: PathInTempDir,
 ) {
     let path = worktree_with_modified_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(SUBDIR_MODIFIED_FILE)).unwrap();
-    AssertFileStatus::new(SUBDIR_MODIFIED_FILE)
+    let change = repo
+        .file_change(Path::new(SUBDIR_MODIFIED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
-        .assert(status);
+        .assert(change);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_untracked_file_in_subdir(
+fn file_change_reports_untracked_file_in_subdir(
     backend: &dyn VcsBackend,
     worktree_with_untracked_subdir: PathInTempDir,
 ) {
     let path = worktree_with_untracked_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(SUBDIR_UNTRACKED_FILE)).unwrap();
-    AssertFileStatus::new(SUBDIR_UNTRACKED_FILE)
+    let change = repo
+        .file_change(Path::new(SUBDIR_UNTRACKED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(SUBDIR_UNTRACKED_FILE)
         .untracked()
-        .assert(status);
+        .assert(change);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_rejects_directory_path(
+fn file_change_rejects_directory_path(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
     let path = clean_worktree_with_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.file_status(Path::new("subdir")).unwrap_err();
+    let err = repo.file_change(Path::new("subdir")).unwrap_err();
     assert_matches!(err, VcsStatusError::PathNotAFile { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_status_reports_file_in_ignored_directory_path(
+fn file_change_returns_none_for_file_in_ignored_directory_path(
     backend: &dyn VcsBackend,
     worktree_with_ignored_subdir: PathInTempDir,
 ) {
     let path = worktree_with_ignored_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let status = repo.file_status(Path::new(SUBDIR_IGNORED_FILE)).unwrap();
-    AssertFileStatus::new(SUBDIR_IGNORED_FILE).assert(status);
+    let change = repo.file_change(Path::new(SUBDIR_IGNORED_FILE)).unwrap();
+    assert!(change.is_none());
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn status_and_file_status_agree_for_paths_reported_individually(
+fn repository_changes_and_file_change_agree_for_paths_reported_individually(
     backend: &dyn VcsBackend,
     worktree_with_mixed_changes: PathInTempDir,
 ) {
     let path = worktree_with_mixed_changes.path();
     let repo = backend.open(path).unwrap().unwrap();
-    let repo_status = repo.repository_status().unwrap();
+    let repo_changes = repo.repository_changes().unwrap().unwrap();
 
     let paths = [
         (CLEAN_FILE, None),
@@ -893,17 +922,17 @@ fn status_and_file_status_agree_for_paths_reported_individually(
     let mut staged_count = 0;
     let mut untracked_count = 0;
 
-    let repo_modified_paths = repo_status
+    let repo_modified_paths = repo_changes
         .modified_files()
-        .map(FileStatus::path)
+        .map(FileChange::path)
         .collect::<Vec<_>>();
-    let repo_staged_paths = repo_status
+    let repo_staged_paths = repo_changes
         .staged_files()
-        .map(FileStatus::path)
+        .map(FileChange::path)
         .collect::<Vec<_>>();
-    let repo_untracked_paths = repo_status
+    let repo_untracked_paths = repo_changes
         .untracked_files()
-        .map(FileStatus::path)
+        .map(FileChange::path)
         .collect::<Vec<_>>();
 
     for (path, deleted) in &paths {
@@ -917,8 +946,10 @@ fn status_and_file_status_agree_for_paths_reported_individually(
             }
             continue;
         }
-        let file_status = repo.file_status(path).unwrap();
-        let mut expected = AssertFileStatus::new(path);
+        let Some(file_change) = repo.file_change(path).unwrap() else {
+            continue;
+        };
+        let mut expected = AssertFileChange::new(path);
         if repo_modified_paths.contains(&path) {
             modified_count += 1;
             expected = expected.modified();
@@ -931,7 +962,7 @@ fn status_and_file_status_agree_for_paths_reported_individually(
             untracked_count += 1;
             expected = expected.untracked();
         }
-        expected.assert(file_status);
+        expected.assert(file_change);
     }
 
     assert_eq!(repo_modified_paths.len(), modified_count);

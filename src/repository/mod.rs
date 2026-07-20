@@ -30,6 +30,68 @@ mod tests;
 ///
 /// Repositories without a worktree, such as Git bare repositories, are not
 /// represented by this type.
+///
+/// # Example
+///
+/// The following example shows how to validate the changes in a repository
+/// before performing an operation that may modify files.
+///
+/// ```no_run
+/// use std::{error::Error, path::Path};
+///
+/// use vcs_status::Repository;
+///
+/// struct AllowOptions {
+///     allow_no_vcs: bool,
+///     allow_dirty: bool,
+///     allow_staged: bool,
+/// }
+///
+/// fn ensure_safe_to_modify(
+///     target_dir: &Path,
+///     options: &AllowOptions,
+/// ) -> Result<(), Box<dyn Error>> {
+///     // Match `cargo fix` exactly:
+///     // - `--allow-no-vcs` allows running even when no repository is found.
+///     // - `--allow-dirty` allows worktree changes, staged changes, and
+///     //   untracked files.
+///     // - `--allow-staged` allows staged changes, but still rejects
+///     //   worktree changes and untracked files.
+///     if options.allow_no_vcs {
+///         return Ok(());
+///     }
+///
+///     let Some(repo) = Repository::discover(target_dir)? else {
+///         return Err("no VCS found for the target directory".into());
+///     };
+///
+///     let Some(changes) = repo.repository_changes()? else {
+///         return Ok(());
+///     };
+///
+///     if options.allow_dirty {
+///         return Ok(());
+///     }
+///
+///     if changes.has_modified_files() || changes.has_untracked_files() {
+///         return Err(
+///             "the repository containing the target directory has uncommitted changes".into(),
+///         );
+///     }
+///
+///     if options.allow_staged {
+///         return Ok(());
+///     }
+///
+///     if changes.has_staged_files() {
+///         return Err("the repository containing the target directory has staged changes".into());
+///     }
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// See the `repository` example for a complete command-line application.
 #[derive(Debug)]
 pub struct Repository {
     inner: Box<dyn VcsRepository>,
@@ -86,7 +148,7 @@ impl Repository {
     /// Returns the root directory of the repository worktree.
     #[inline]
     #[must_use]
-    pub fn workdir(&self) -> &Path {
+    pub fn worktree(&self) -> &Path {
         self.inner.worktree()
     }
 
@@ -98,7 +160,7 @@ impl Repository {
     /// crate is intended for `--allow-*` style checks, which treat them the
     /// same as clean files.
     ///
-    /// Paths in the returned changes are relative to [`Self::workdir`].
+    /// Paths in the returned changes are relative to [`Self::worktree`].
     ///
     /// # Errors
     ///
@@ -121,9 +183,9 @@ impl Repository {
     /// crate is intended for `--allow-*` style checks, which treat them the
     /// same as clean files.
     ///
-    /// Paths in the returned changes are relative to [`Self::workdir`].
+    /// Paths in the returned changes are relative to [`Self::worktree`].
     ///
-    /// `path` must resolve to a path within [`Self::workdir`]. Symlinks are
+    /// `path` must resolve to a path within [`Self::worktree`]. Symlinks are
     /// followed.
     ///
     /// If the resolved path does not exist in the worktree, this method may
@@ -134,7 +196,7 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not resolve to a path within [`Self::workdir`]
+    /// - `path` does not resolve to a path within [`Self::worktree`]
     /// - `path` does not exist in the worktree and does not refer to a path
     ///   known to the VCS
     /// - `path` could not be resolved to a canonical path for any other reason
@@ -156,7 +218,7 @@ impl Repository {
     /// If this method returns `Ok(Some(change))`, the returned [`FileChange`]
     /// describes the resolved file path.
     ///
-    /// `path` must resolve to a path within [`Self::workdir`]. Symlinks are
+    /// `path` must resolve to a path within [`Self::worktree`]. Symlinks are
     /// followed.
     ///
     /// If the resolved path exists in the worktree, it must be a file.
@@ -176,7 +238,7 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not resolve to a path within [`Self::workdir`]
+    /// - `path` does not resolve to a path within [`Self::worktree`]
     /// - the resolved path exists in the worktree but does not resolve to a
     ///   file
     /// - `path` does not exist in the worktree and does not refer to a tracked
@@ -386,6 +448,16 @@ impl FileChange {
     #[must_use]
     pub fn is_untracked(&self) -> bool {
         self.untracked
+    }
+
+    /// Returns whether the file is dirty.
+    ///
+    /// In this crate, a dirty file is a file with unstaged modifications or an
+    /// untracked file. Staged-only changes are not considered dirty.
+    #[inline]
+    #[must_use]
+    pub fn is_dirty(&self) -> bool {
+        self.modified || self.untracked
     }
 }
 

@@ -26,59 +26,53 @@ The following example shows how to validate the changes in a repository
 before performing an operation that may modify files.
 
 ````rust,no_run
-use std::{error::Error, path::Path};
+use std::path::{Path, PathBuf};
 
-use vcs_status::Repository;
+use clap::Parser;
+use vcs_status::{AllowOptions, CheckResult};
 
-struct AllowOptions {
+#[derive(Debug, Parser)]
+struct Args {
+    /// Process code even if a VCS was not detected.
+    #[arg(long)]
     allow_no_vcs: bool,
+    /// Process code even if the target directory has modified, staged, or
+    /// untracked files under it.
+    #[arg(long)]
     allow_dirty: bool,
+    /// Process code even if the target directory has staged changes under it.
+    #[arg(long)]
     allow_staged: bool,
+    /// Target directory to process. Defaults to the current working directory.
+    /// Only this directory is checked by default.
+    #[arg(long)]
+    target_dir: Option<PathBuf>,
 }
 
-fn ensure_safe_to_modify(
-    target_dir: &Path,
-    options: &AllowOptions,
-) -> Result<(), Box<dyn Error>> {
-    // Match `cargo fix` exactly:
-    // - `--allow-no-vcs` allows running even when no repository is found.
-    // - `--allow-dirty` allows worktree changes, staged changes, and
-    //   untracked files.
-    // - `--allow-staged` allows staged changes, but still rejects
-    //   worktree changes and untracked files.
-    if options.allow_no_vcs {
-        return Ok(());
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
+    let target_dir = args.target_dir.as_deref().unwrap_or_else(|| Path::new("."));
+    let result = AllowOptions::new()
+        .allow_no_vcs(args.allow_no_vcs)
+        .allow_dirty(args.allow_dirty)
+        .allow_staged(args.allow_staged)
+        .check_safe_to_modify(target_dir)?;
+
+    match result {
+        CheckResult::Allowed => {}
+        CheckResult::BlockedByNoVcs => {
+            return Err("blocked by no VCS".into());
+        }
+        CheckResult::BlockedByDirty { .. } => {
+            return Err("blocked by dirty files".into());
+        }
+        CheckResult::BlockedByStaged { .. } => {
+            return Err("blocked by staged changes".into());
+        }
     }
 
-    let Some(repo) = Repository::discover(target_dir)? else {
-        return Err("no VCS found for the target directory".into());
-    };
-
-    let Some(changes) = repo.repository_changes()? else {
-       return Ok(());
-    };
-
-    if options.allow_dirty {
-        return Ok(());
-    }
-
-    if changes.has_modified_files() || changes.has_untracked_files() {
-        return Err(
-            "the repository containing the target directory has uncommitted changes"
-                .into(),
-        );
-    }
-
-    if options.allow_staged {
-        return Ok(());
-    }
-
-    if changes.has_staged_files() {
-        return Err(
-            "the repository containing the target directory has staged changes"
-                .into(),
-        );
-    }
+    eprintln!("Proceeding...");
 
     Ok(())
 }

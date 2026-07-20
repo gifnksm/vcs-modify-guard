@@ -1,98 +1,83 @@
-//! Demonstrates how a CLI tool can implement `--allow-dirty`,
-//! `--allow-staged`, and `--allow-no-vcs` options with behavior
-//! equivalent to `cargo fix`.
+//! Demonstrates path-scoped `--allow-dirty`, `--allow-staged`, and
+//! `--allow-no-vcs` checks using [`vcs_status::AllowOptions`].
+//!
+//! This example uses the same `--allow-*` flag semantics as `cargo fix`, but
+//! applies them only to the queried path by default.
 
-use std::{
-    error::Error,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use vcs_status::Repository;
+use vcs_status::{AllowOptions, CheckResult};
 
 #[derive(Debug, Parser)]
 struct Args {
     /// Process code even if a VCS was not detected.
     #[arg(long)]
     allow_no_vcs: bool,
-
-    /// Process code even if the containing repository has modified, staged,
-    /// or untracked files.
+    /// Process code even if the target directory has modified, staged, or
+    /// untracked files under it.
     #[arg(long)]
     allow_dirty: bool,
-
-    /// Process code even if the containing repository has staged changes.
+    /// Process code even if the target directory has staged changes under it.
     #[arg(long)]
     allow_staged: bool,
-
     /// Target directory to process. Defaults to the current working directory.
-    /// The repository containing this directory will be checked.
+    /// Only this directory is checked by default.
     #[arg(long)]
     target_dir: Option<PathBuf>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let target_dir = args.target_dir.as_deref().unwrap_or_else(|| Path::new("."));
-    let options = AllowOptions {
-        allow_no_vcs: args.allow_no_vcs,
-        allow_staged: args.allow_staged,
-        allow_dirty: args.allow_dirty,
-    };
+    let result = AllowOptions::new()
+        .allow_no_vcs(args.allow_no_vcs)
+        .allow_dirty(args.allow_dirty)
+        .allow_staged(args.allow_staged)
+        .check_safe_to_modify(target_dir)?;
 
-    ensure_safe_to_modify(target_dir, &options)?;
+    match result {
+        CheckResult::Allowed => {}
+        CheckResult::BlockedByNoVcs => {
+            eprintln!(
+                "The target directory is not in a VCS repository. Use `--allow-no-vcs` to override this check."
+            );
+            return Err("blocked by no VCS".into());
+        }
+        CheckResult::BlockedByDirty {
+            worktree,
+            dirty_files,
+            staged_files,
+        } => {
+            eprintln!(
+                "The target directory has uncommitted changes under it. Use `--allow-dirty` to override this check."
+            );
+            eprintln!("Worktree: {}", worktree.display());
+            for file in dirty_files {
+                eprintln!("* {} (dirty)", file.display());
+            }
+            for file in staged_files {
+                eprintln!("* {} (staged)", file.display());
+            }
+            return Err("blocked by dirty files".into());
+        }
+        CheckResult::BlockedByStaged {
+            worktree,
+            staged_files,
+        } => {
+            eprintln!(
+                "The target directory has staged changes under it. Use `--allow-staged` to override this check."
+            );
+            eprintln!("Worktree: {}", worktree.display());
+            for file in staged_files {
+                eprintln!("* {} (staged)", file.display());
+            }
+            return Err("blocked by staged changes".into());
+        }
+    }
 
     eprintln!("Proceeding...");
-
-    Ok(())
-}
-
-struct AllowOptions {
-    allow_no_vcs: bool,
-    allow_dirty: bool,
-    allow_staged: bool,
-}
-
-fn ensure_safe_to_modify(target_dir: &Path, options: &AllowOptions) -> Result<(), Box<dyn Error>> {
-    // Match `cargo fix` exactly:
-    // - `--allow-no-vcs` allows running even when no repository is found.
-    // - `--allow-dirty` allows worktree changes, staged changes, and
-    //   untracked files.
-    // - `--allow-staged` allows staged changes, but still rejects worktree
-    //   changes and untracked files.
-    if options.allow_no_vcs {
-        eprintln!("--allow-no-vcs is set, skipping repository checks.");
-        return Ok(());
-    }
-
-    let Some(repo) = Repository::discover(target_dir)? else {
-        return Err("no VCS found for the target directory; if you'd like to suppress this error pass `--allow-no-vcs`".into());
-    };
-
-    let Some(changes) = repo.repository_changes()? else {
-        return Ok(());
-    };
-
-    if options.allow_dirty {
-        return Ok(());
-    }
-
-    if changes.has_modified_files() || changes.has_untracked_files() {
-        return Err(
-            "the repository containing the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
-        );
-    }
-
-    if options.allow_staged {
-        return Ok(());
-    }
-
-    if changes.has_staged_files() {
-        return Err(
-            "the repository containing the target directory has staged changes; if you'd like to suppress this error pass `--allow-staged`".into(),
-        );
-    }
 
     Ok(())
 }

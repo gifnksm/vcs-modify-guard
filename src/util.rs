@@ -162,9 +162,8 @@ mod tests {
     use assert_fs::prelude::*;
     use rstest::*;
 
-    use crate::testing::PathInTempDir;
-
     use super::*;
+    use crate::testing::PathInTempDir;
 
     #[track_caller]
     fn assert_existing<P>(actual: NormalizedWorktreePath, expected: P)

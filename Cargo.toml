@@ -108,7 +108,6 @@ rest_pat_in_fully_bound_structs = "warn"
 # this lint is currently nightly-only and will reach stable Clippy in 1.99; keep it disabled until then
 # rest_pattern_accessible_field = "warn"
 return_and_then = "warn"
-same_name_method = "warn"
 self_named_module_files = "warn"
 str_to_string = "warn"
 string_add = "warn"

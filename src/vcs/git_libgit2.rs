@@ -5,14 +5,13 @@ use std::{
 
 use snafu::{IntoError as _, ResultExt as _, Snafu};
 
+use super::VcsRepository;
 use crate::{
     error::{self, VcsStatusError},
     repository::{FileChange, RepositoryChanges},
     util::{self, NormalizedWorktreePath},
     vcs::VcsBackend,
 };
-
-use super::VcsRepository;
 
 pub(super) const BACKEND: Libgit2Backend = Libgit2Backend;
 

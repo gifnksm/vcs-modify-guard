@@ -1,12 +1,11 @@
 use std::{fmt::Debug, path::Path};
 
+#[cfg(feature = "git-libgit2")]
+pub use self::git_libgit2::Libgit2BackendError;
 use crate::{
     error::{self, VcsStatusError},
     repository::{FileChange, RepositoryChanges},
 };
-
-#[cfg(feature = "git-libgit2")]
-pub use self::git_libgit2::Libgit2BackendError;
 
 #[cfg(feature = "git-libgit2")]
 mod git_libgit2;

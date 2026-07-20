@@ -7,8 +7,8 @@
 //! Paths returned by change queries are relative to the repository worktree.
 //!
 //! Most users will start with [`Repository::discover`] or [`Repository::open`],
-//! then query changes with [`Repository::repository_changes`] or
-//! [`Repository::file_change`].
+//! then query changes with [`Repository::repository_changes`],
+//! [`Repository::path_changes`], or [`Repository::file_change`].
 
 use std::{
     path::{Path, PathBuf},
@@ -92,13 +92,13 @@ impl Repository {
 
     /// Returns the aggregate file changes in the repository worktree.
     ///
-    /// Paths in the returned changes are relative to [`Self::workdir`].
-    ///
     /// Returns `Ok(None)` if the repository has no modified, staged, or
     /// untracked files. Clean tracked files are not included in this aggregate
     /// change set. Files ignored by the VCS are also omitted because this
     /// crate is intended for `--allow-*` style checks, which treat them the
     /// same as clean files.
+    ///
+    /// Paths in the returned changes are relative to [`Self::workdir`].
     ///
     /// # Errors
     ///
@@ -106,6 +106,45 @@ impl Repository {
     #[inline]
     pub fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
         self.inner.repository_changes()
+    }
+
+    /// Returns the aggregate file changes for `path` within the repository.
+    ///
+    /// If `path` resolves to a file path, the returned change set contains at
+    /// most that file. If `path` resolves to a directory path, the returned
+    /// change set contains changes for files under that directory. The
+    /// repository worktree root is also accepted.
+    ///
+    /// Returns `Ok(None)` if the resolved path has no modified, staged, or
+    /// untracked files. Clean tracked files are not included in this aggregate
+    /// change set. Files ignored by the VCS are also omitted because this
+    /// crate is intended for `--allow-*` style checks, which treat them the
+    /// same as clean files.
+    ///
+    /// Paths in the returned changes are relative to [`Self::workdir`].
+    ///
+    /// `path` must resolve to a path within [`Self::workdir`]. Symlinks are
+    /// followed.
+    ///
+    /// If the resolved path does not exist in the worktree, this method may
+    /// still return changes when the path refers to paths known to the VCS,
+    /// such as a deleted tracked file path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    ///
+    /// - `path` does not resolve to a path within [`Self::workdir`]
+    /// - `path` does not exist in the worktree and does not refer to a path
+    ///   known to the VCS
+    /// - `path` could not be resolved to a canonical path for any other reason
+    /// - the backend fails to query changes for `path` for any other reason
+    #[inline]
+    pub fn path_changes<P>(&self, path: P) -> Result<Option<RepositoryChanges>, VcsStatusError>
+    where
+        P: AsRef<Path>,
+    {
+        self.inner.path_changes(path.as_ref())
     }
 
     /// Returns the modified, staged, or untracked change for the file path
@@ -155,15 +194,16 @@ impl Repository {
 
 /// A non-empty set of file changes.
 ///
-/// Values of this type are returned by [`Repository::repository_changes`].
+/// Values of this type are returned by [`Repository::repository_changes`] and
+/// [`Repository::path_changes`].
 ///
 /// This type contains only modified, staged, or untracked files. Clean
 /// tracked files are not included. Files ignored by the VCS are also omitted
 /// because this crate is intended for `--allow-*` style checks, which treat
 /// them the same as clean files.
 ///
-/// [`Repository::repository_changes`] returns `None` instead of an empty
-/// change set.
+/// [`Repository::repository_changes`] and [`Repository::path_changes`] return
+/// `None` instead of an empty change set.
 ///
 /// File changes are ordered by ascending worktree-relative path. Entries may
 /// include tracked paths that are no longer present in the worktree.
@@ -286,7 +326,8 @@ impl RepositoryChanges {
 /// A file change within a repository.
 ///
 /// Values of this type are returned by [`Repository::file_change`] and yielded
-/// by iterators over [`RepositoryChanges`].
+/// by iterators over [`RepositoryChanges`] returned by
+/// [`Repository::repository_changes`] and [`Repository::path_changes`].
 ///
 /// Instances of this type always represent a modified, staged, or untracked
 /// file, or a combination of those states. Clean tracked files and files

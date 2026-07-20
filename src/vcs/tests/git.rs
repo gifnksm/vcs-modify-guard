@@ -238,6 +238,10 @@ const SUBDIR_CLEAN_FILE: &str = "subdir/clean_file.txt";
 const SUBDIR_MODIFIED_FILE: &str = "subdir/modified_file.txt";
 const SUBDIR_UNTRACKED_FILE: &str = "subdir/untracked_file.txt";
 const SUBDIR_IGNORED_FILE: &str = "subdir/ignored_file.txt";
+const SUBDIR1_MODIFIED_FILE: &str = "subdir1/modified_file.txt";
+const SUBDIR1_UNTRACKED_FILE: &str = "subdir1/untracked_file.txt";
+const LITERAL_SUBDIR_MODIFIED_FILE: &str = "subdir[1]/modified_file.txt";
+const GLOB_MATCHING_SUBDIR_MODIFIED_FILE: &str = "subdir1/modified_file.txt";
 
 #[fixture]
 fn clean_worktree_with_subdir() -> PathInTempDir {
@@ -280,6 +284,49 @@ fn worktree_with_ignored_subdir() -> PathInTempDir {
     git_add(&path, ["."]).success();
     git_commit(&path).success();
     path.child(SUBDIR_IGNORED_FILE).touch().unwrap();
+    path
+}
+
+#[fixture]
+fn worktree_with_root_and_subdir_changes() -> PathInTempDir {
+    let path = PathInTempDir::new();
+    git_init(&path).success();
+    path.child(MODIFIED_FILE).touch().unwrap();
+    path.child(SUBDIR_MODIFIED_FILE).touch().unwrap();
+    path.child(SUBDIR1_MODIFIED_FILE).touch().unwrap();
+    git_add(&path, ["."]).success();
+    git_commit(&path).success();
+    path.child(MODIFIED_FILE)
+        .write_str("Modified content")
+        .unwrap();
+    path.child(SUBDIR_MODIFIED_FILE)
+        .write_str("Modified content")
+        .unwrap();
+    path.child(SUBDIR1_MODIFIED_FILE)
+        .write_str("Modified content")
+        .unwrap();
+    path.child(UNTRACKED_FILE).touch().unwrap();
+    path.child(SUBDIR_UNTRACKED_FILE).touch().unwrap();
+    path.child(SUBDIR1_UNTRACKED_FILE).touch().unwrap();
+    path
+}
+
+#[fixture]
+fn worktree_with_literal_and_glob_matching_subdirs() -> PathInTempDir {
+    let path = PathInTempDir::new();
+    git_init(&path).success();
+    path.child(LITERAL_SUBDIR_MODIFIED_FILE).touch().unwrap();
+    path.child(GLOB_MATCHING_SUBDIR_MODIFIED_FILE)
+        .touch()
+        .unwrap();
+    git_add(&path, ["."]).success();
+    git_commit(&path).success();
+    path.child(LITERAL_SUBDIR_MODIFIED_FILE)
+        .write_str("Modified content")
+        .unwrap();
+    path.child(GLOB_MATCHING_SUBDIR_MODIFIED_FILE)
+        .write_str("Modified content")
+        .unwrap();
     path
 }
 
@@ -629,6 +676,142 @@ fn repository_changes_reports_untracked_file_in_subdir(
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
         .untracked([SUBDIR_UNTRACKED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_returns_none_for_clean_worktree(
+    backend: &dyn VcsBackend,
+    clean_worktree: PathInTempDir,
+) {
+    let path = clean_worktree.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", "."] {
+        let changes = repo.path_changes(Path::new(query)).unwrap();
+        assert!(changes.is_none());
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_modified_file(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_file: PathInTempDir,
+) {
+    let path = worktree_with_modified_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", "."] {
+        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
+        AssertRepositoryChanges::default()
+            .modified([MODIFIED_FILE])
+            .assert(changes);
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_returns_none_for_clean_worktree_with_subdir(
+    backend: &dyn VcsBackend,
+    clean_worktree_with_subdir: PathInTempDir,
+) {
+    let path = clean_worktree_with_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", ".", "subdir", SUBDIR_CLEAN_FILE] {
+        let changes = repo.path_changes(Path::new(query)).unwrap();
+        assert!(changes.is_none());
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_modified_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_subdir: PathInTempDir,
+) {
+    let path = worktree_with_modified_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", ".", "subdir", SUBDIR_MODIFIED_FILE] {
+        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
+        AssertRepositoryChanges::default()
+            .modified([SUBDIR_MODIFIED_FILE])
+            .assert(changes);
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_untracked_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_untracked_subdir: PathInTempDir,
+) {
+    let path = worktree_with_untracked_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", ".", "subdir", SUBDIR_UNTRACKED_FILE] {
+        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
+        AssertRepositoryChanges::default()
+            .untracked([SUBDIR_UNTRACKED_FILE])
+            .assert(changes);
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_rejects_non_existent_path(
+    backend: &dyn VcsBackend,
+    worktree_with_untracked_subdir: PathInTempDir,
+) {
+    let path = worktree_with_untracked_subdir.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["xxx", "subdir/xxx.txt"] {
+        let err = repo.path_changes(Path::new(query)).unwrap_err();
+        assert_matches!(err, VcsStatusError::PathNotFound { .. });
+    }
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_only_changes_under_queried_directory(
+    backend: &dyn VcsBackend,
+    worktree_with_root_and_subdir_changes: PathInTempDir,
+) {
+    let path = worktree_with_root_and_subdir_changes.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.path_changes(Path::new("subdir")).unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([SUBDIR_MODIFIED_FILE])
+        .untracked([SUBDIR_UNTRACKED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_only_queried_file(
+    backend: &dyn VcsBackend,
+    worktree_with_root_and_subdir_changes: PathInTempDir,
+) {
+    let path = worktree_with_root_and_subdir_changes.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo
+        .path_changes(Path::new(SUBDIR_MODIFIED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertRepositoryChanges::default()
+        .modified([SUBDIR_MODIFIED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_treats_directory_path_as_literal_pathspec(
+    backend: &dyn VcsBackend,
+    worktree_with_literal_and_glob_matching_subdirs: PathInTempDir,
+) {
+    let path = worktree_with_literal_and_glob_matching_subdirs.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.path_changes(Path::new("subdir[1]")).unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .modified([LITERAL_SUBDIR_MODIFIED_FILE])
         .assert(changes);
 }
 

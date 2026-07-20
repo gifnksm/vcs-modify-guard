@@ -44,6 +44,7 @@ pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, VcsStatusError
 pub(crate) trait VcsRepository: Debug {
     fn worktree(&self) -> &Path;
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError>;
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError>;
     fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError>;
 }
 

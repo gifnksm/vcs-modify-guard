@@ -120,22 +120,27 @@ impl VcsRepository for Libgit2Repository {
     }
 
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
-        let mut repo_opts = git2::StatusOptions::new();
-        repo_opts.include_untracked(true);
-        repo_opts.recurse_untracked_dirs(true);
-        let entries =
-            self.repo
-                .statuses(Some(&mut repo_opts))
-                .context(QueryRepositoryChangesSnafu {
-                    worktree: &self.worktree,
-                })?;
-        let file_entries = entries.iter().filter_map(|entry| {
-            // Match `cargo fix`: ignore status entries whose paths cannot be represented as UTF-8.
-            let path = entry.path().ok()?;
-            StatusFlags::from(entry.status()).build(path)
-        });
+        self.directory_path_changes(None)
+    }
 
-        Ok(RepositoryChanges::new(file_entries))
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+        let path = util::normalize_to_worktree_path(&self.worktree, path)?;
+        let is_dir = match &path {
+            NormalizedWorktreePath::Existing(path) => {
+                let fs_path = self.worktree.join(path);
+                let metadata = util::read_path_metadata(&fs_path)?;
+                metadata.is_dir()
+            }
+            NormalizedWorktreePath::Missing(_) => true,
+        };
+        if path.as_path().as_os_str().is_empty() {
+            return self.directory_path_changes(None);
+        }
+        if is_dir {
+            return self.directory_path_changes(Some(&path));
+        }
+        let change = self.file_path_change(path)?;
+        Ok(change.and_then(|change| RepositoryChanges::new([change])))
     }
 
     fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError> {
@@ -147,6 +152,50 @@ impl VcsRepository for Libgit2Repository {
             }
             NormalizedWorktreePath::Missing(_) => {}
         }
+        self.file_path_change(path)
+    }
+}
+
+impl Libgit2Repository {
+    fn directory_path_changes(
+        &self,
+        path: Option<&NormalizedWorktreePath>,
+    ) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+        let mut repo_opts = git2::StatusOptions::new();
+        if let Some(path) = path {
+            repo_opts.pathspec(path.as_path());
+            repo_opts.disable_pathspec_match(true);
+        }
+        repo_opts.include_untracked(true);
+        repo_opts.recurse_untracked_dirs(true);
+        let entries =
+            self.repo
+                .statuses(Some(&mut repo_opts))
+                .context(QueryRepositoryChangesSnafu {
+                    worktree: &self.worktree,
+                })?;
+        let mut file_entries = entries
+            .iter()
+            .filter_map(|entry| {
+                // Match `cargo fix`: ignore status entries whose paths cannot be represented as UTF-8.
+                let path = entry.path().ok()?;
+                StatusFlags::from(entry.status()).build(path)
+            })
+            .peekable();
+
+        if file_entries.peek().is_none()
+            && let Some(NormalizedWorktreePath::Missing(path)) = &path
+        {
+            return Err(error::PathNotFoundSnafu { path }.build());
+        }
+
+        Ok(RepositoryChanges::new(file_entries))
+    }
+
+    fn file_path_change(
+        &self,
+        path: NormalizedWorktreePath,
+    ) -> Result<Option<FileChange>, VcsStatusError> {
         let status = match self.repo.status_file(path.as_path()) {
             Ok(status) => status,
             Err(source) if source.code() == git2::ErrorCode::NotFound => {

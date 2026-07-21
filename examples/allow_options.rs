@@ -14,34 +14,32 @@ struct Args {
     /// Process code even if a VCS was not detected.
     #[arg(long)]
     allow_no_vcs: bool,
-    /// Process code even if the target directory has modified, staged, or
+    /// Process code even if the target path has modified, staged, or
     /// untracked files under it.
     #[arg(long)]
     allow_dirty: bool,
-    /// Process code even if the target directory has staged changes under it.
+    /// Process code even if the target path has staged changes under it.
     #[arg(long)]
     allow_staged: bool,
-    /// Target directory to process. Defaults to the current working directory.
-    /// Only this directory is checked by default.
-    #[arg(long)]
-    target_dir: Option<PathBuf>,
+    /// Target path to process. Defaults to the current working directory.
+    target: Option<PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let target_dir = args.target_dir.as_deref().unwrap_or_else(|| Path::new("."));
+    let target = args.target.as_deref().unwrap_or_else(|| Path::new("."));
     let result = AllowOptions::new()
         .allow_no_vcs(args.allow_no_vcs)
         .allow_dirty(args.allow_dirty)
         .allow_staged(args.allow_staged)
-        .check_safe_to_modify(target_dir)?;
+        .check_safe_to_modify(target)?;
 
     match result {
         CheckResult::Allowed => {}
         CheckResult::BlockedByNoVcs => {
             eprintln!(
-                "The target directory is not in a VCS repository. Use `--allow-no-vcs` to override this check."
+                "The target path is not in a VCS repository. Use `--allow-no-vcs` to override this check."
             );
             return Err("blocked by no VCS".into());
         }
@@ -51,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             staged_files,
         } => {
             eprintln!(
-                "The target directory has uncommitted changes under it. Use `--allow-dirty` to override this check."
+                "The target path has uncommitted changes under it. Use `--allow-dirty` to override this check."
             );
             eprintln!("Worktree: {}", worktree.display());
             for file in dirty_files {
@@ -67,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             staged_files,
         } => {
             eprintln!(
-                "The target directory has staged changes under it. Use `--allow-staged` to override this check."
+                "The target path has staged changes under it. Use `--allow-staged` to override this check."
             );
             eprintln!("Worktree: {}", worktree.display());
             for file in staged_files {

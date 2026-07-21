@@ -33,7 +33,7 @@
 //! }
 //!
 //! fn ensure_safe_to_modify(
-//!     target_dir: &Path,
+//!     target: &Path,
 //!     options: &PolicyOptions,
 //! ) -> Result<(), Box<dyn Error>> {
 //!     // Match `cargo fix` exactly:
@@ -46,8 +46,8 @@
 //!         return Ok(());
 //!     }
 //!
-//!     let Some(repo) = Repository::discover(target_dir)? else {
-//!         return Err("no VCS found for the target directory".into());
+//!     let Some(repo) = Repository::discover(target)? else {
+//!         return Err("no VCS found for the target path".into());
 //!     };
 //!
 //!     let Some(changes) = repo.repository_changes()? else {
@@ -60,7 +60,7 @@
 //!
 //!     if changes.has_dirty_files() {
 //!         return Err(
-//!             "the repository containing the target directory has uncommitted changes".into(),
+//!             "the repository containing the target path has uncommitted changes".into(),
 //!         );
 //!     }
 //!
@@ -69,7 +69,7 @@
 //!     }
 //!
 //!     if changes.has_staged_files() {
-//!         return Err("the repository containing the target directory has staged changes".into());
+//!         return Err("the repository containing the target path has staged changes".into());
 //!     }
 //!
 //!     Ok(())
@@ -120,7 +120,7 @@ mod tests;
 /// }
 ///
 /// fn ensure_safe_to_modify(
-///     target_dir: &Path,
+///     target: &Path,
 ///     options: &PolicyOptions,
 /// ) -> Result<(), Box<dyn Error>> {
 ///     // Match `cargo fix` exactly:
@@ -133,8 +133,8 @@ mod tests;
 ///         return Ok(());
 ///     }
 ///
-///     let Some(repo) = Repository::discover(target_dir)? else {
-///         return Err("no VCS found for the target directory".into());
+///     let Some(repo) = Repository::discover(target)? else {
+///         return Err("no VCS found for the target path".into());
 ///     };
 ///
 ///     let Some(changes) = repo.repository_changes()? else {
@@ -147,7 +147,7 @@ mod tests;
 ///
 ///     if changes.has_dirty_files() {
 ///         return Err(
-///             "the repository containing the target directory has uncommitted changes".into(),
+///             "the repository containing the target path has uncommitted changes".into(),
 ///         );
 ///     }
 ///
@@ -156,7 +156,7 @@ mod tests;
 ///     }
 ///
 ///     if changes.has_staged_files() {
-///         return Err("the repository containing the target directory has staged changes".into());
+///         return Err("the repository containing the target path has staged changes".into());
 ///     }
 ///
 ///     Ok(())

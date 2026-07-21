@@ -1,6 +1,6 @@
 # Contribution guidelines
 
-First off, thank you for considering contributing to vcs-status.
+First off, thank you for considering contributing to vcs-modify-guard.
 
 If your contribution is not straightforward, please first discuss the change you
 wish to make by creating a new issue before making the change.
@@ -8,7 +8,7 @@ wish to make by creating a new issue before making the change.
 ## Reporting issues
 
 Before reporting an issue on the
-[issue tracker](https://github.com/gifnksm/vcs-status/issues),
+[issue tracker](https://github.com/gifnksm/vcs-modify-guard/issues),
 please check that it has not already been reported by searching for some related
 keywords.
 
@@ -25,7 +25,7 @@ reference it with `Refs #<number>`.
 ### Updating the changelog
 
 Update the changes you have made in
-[CHANGELOG](https://github.com/gifnksm/vcs-status/blob/main/CHANGELOG.md)
+[CHANGELOG](https://github.com/gifnksm/vcs-modify-guard/blob/main/CHANGELOG.md)
 file under the **Unreleased** section.
 
 Add the pull request number to changelog entries when available. If the pull
@@ -52,8 +52,8 @@ If the required subsection does not exist yet under **Unreleased**, create it!
 This is no different than other Rust projects.
 
 ```console
-git clone https://github.com/gifnksm/vcs-status
-cd vcs-status
+git clone https://github.com/gifnksm/vcs-modify-guard
+cd vcs-modify-guard
 cargo test
 ```
 

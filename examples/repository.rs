@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use vcs_status::Repository;
+use vcs_modify_guard::repository::Repository;
 
 #[derive(Debug, Parser)]
 struct Args {

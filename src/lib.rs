@@ -1,10 +1,22 @@
 //! Help CLI tools decide whether it is safe to modify files in a VCS
 //! working tree.
 //!
-//! `vcs-status` provides a small abstraction over version control systems
-//! for checking whether a working tree has modified, staged, or untracked
-//! files. It is intended for CLI tools that implement options such as
-//! `--allow-dirty`, `--allow-staged`, and `--allow-no-vcs`.
+//! `vcs-modify-guard` helps CLI tools enforce `--allow-dirty`,
+//! `--allow-staged`, and `--allow-no-vcs` style checks before they modify
+//! files.
+//!
+//! This crate provides two layers of API:
+//!
+//! - [`AllowOptions`] is the main entry point. It implements `cargo fix`-style
+//!   safe-to-modify checks and returns a [`CheckResult`] describing whether an
+//!   operation is allowed or blocked.
+//! - [`repository::Repository`] is a lower-level API for tools that need to
+//!   discover a repository and inspect modified, staged, or untracked files to
+//!   implement their own policy.
+//!
+//! Most users should start with [`AllowOptions`]. Reach for
+//! [`repository::Repository`] only when you need custom behavior beyond the
+//! built-in `--allow-*` semantics.
 //!
 //! # Example
 //!
@@ -15,7 +27,7 @@
 //! use std::path::{Path, PathBuf};
 //!
 //! use clap::Parser;
-//! use vcs_status::{AllowOptions, CheckResult};
+//! use vcs_modify_guard::{AllowOptions, CheckResult};
 //!
 //! #[derive(Debug, Parser)]
 //! struct Args {
@@ -66,17 +78,21 @@
 //!
 //! See the `allow_options` example for a complete command-line application.
 //!
+//! If you need custom policy logic instead of the built-in `--allow-*`
+//! behavior, see the [`repository`] module for direct repository discovery and
+//! change query APIs.
+//!
 //! # Usage
 //!
 //! Add this to your `Cargo.toml`:
 //!
 //! ```toml
 //! [dependencies]
-//! vcs-status = "0.1.0"
+//! vcs-modify-guard = "0.1.0"
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc(html_root_url = "https://docs.rs/vcs-status/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/vcs-modify-guard/0.1.0")]
 
 #[cfg_attr(
     not(vcs_backend_enabled),
@@ -87,7 +103,7 @@
     )
 )]
 pub use self::vcs::*;
-pub use self::{allow_options::*, error::*, repository::Repository};
+pub use self::{allow_options::*, error::*};
 
 mod allow_options;
 mod error;

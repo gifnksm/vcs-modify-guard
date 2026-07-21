@@ -1,5 +1,5 @@
 //! Demonstrates path-scoped `--allow-dirty`, `--allow-staged`, and
-//! `--allow-no-vcs` checks using [`vcs_status::AllowOptions`].
+//! `--allow-no-vcs` checks using [`vcs_modify_guard::AllowOptions`].
 //!
 //! This example uses the same `--allow-*` flag semantics as `cargo fix`, but
 //! applies them only to the queried path by default.
@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use vcs_status::{AllowOptions, CheckResult};
+use vcs_modify_guard::{AllowOptions, CheckResult};
 
 #[derive(Debug, Parser)]
 struct Args {

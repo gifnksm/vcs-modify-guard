@@ -1,11 +1,11 @@
 [package]
-name = "vcs-status"
+name = "vcs-modify-guard"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.96.0"
-description = "A library for querying VCS working tree status."
+description = "A library for checking whether it is safe to modify files in a VCS worktree."
 readme = "README.md"
-repository = "https://github.com/gifnksm/vcs-status"
+repository = "https://github.com/gifnksm/vcs-modify-guard"
 license = "MIT OR Apache-2.0"
 keywords = [
   "dirty",

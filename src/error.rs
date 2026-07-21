@@ -2,11 +2,11 @@ use std::{error::Error, io, path::PathBuf};
 
 use snafu::Snafu;
 
-/// Errors returned by `vcs-status` operations.
+/// Errors returned by `vcs-modify-guard` operations.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 #[snafu(visibility(pub(crate)))]
-pub enum VcsStatusError {
+pub enum ModifyGuardError {
     /// The specified path does not refer to a repository supported by the
     /// enabled backends.
     #[snafu(display("not a VCS repository: {}", path.display()))]
@@ -76,8 +76,8 @@ pub enum VcsStatusError {
     },
 }
 
-// assert that VcsStatusError is Send + Sync
+// assert that ModifyGuardError is Send + Sync
 const _: () = {
     const fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<VcsStatusError>();
+    assert_send_sync::<ModifyGuardError>();
 };

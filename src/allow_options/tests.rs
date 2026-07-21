@@ -79,11 +79,11 @@ impl AllowOptionsRepository for StubRepo {
         &self.worktree
     }
 
-    fn path_changes(&self, _path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn path_changes(&self, _path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         Ok(self.path_changes_result.clone())
     }
 
-    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         Ok(self.repository_changes_result.clone())
     }
 }
@@ -103,7 +103,7 @@ impl StubBackend {
 impl AllowOptionsBackend for StubBackend {
     type Repo = StubRepo;
 
-    fn discover(&self, _path: &Path) -> Result<Option<Self::Repo>, VcsStatusError> {
+    fn discover(&self, _path: &Path) -> Result<Option<Self::Repo>, ModifyGuardError> {
         Ok(self.repo.clone())
     }
 }

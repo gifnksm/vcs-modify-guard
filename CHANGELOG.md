@@ -12,4 +12,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * First release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/gifnksm/vcs-status/commits/HEAD
+[Unreleased]: https://github.com/gifnksm/vcs-modify-guard/commits/HEAD

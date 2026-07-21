@@ -1,14 +1,79 @@
-//! Repository change query APIs.
+//! Lower-level repository change query APIs.
 //!
-//! This module provides the [`Repository`] type for discovering and querying
-//! VCS repositories, along with change result types such as
-//! [`RepositoryChanges`] and [`FileChange`].
+//! Most users should start with [`crate::AllowOptions`], which implements the
+//! crate's built-in `--allow-*` safe-to-modify policy.
+//!
+//! This module provides the [`Repository`] type for tools that need to
+//! discover a VCS repository and inspect modified, staged, or untracked files
+//! directly in order to implement custom policy logic.
 //!
 //! Paths returned by change queries are relative to the repository worktree.
 //!
-//! Most users will start with [`Repository::discover`] or [`Repository::open`],
-//! then query changes with [`Repository::repository_changes`],
+//! Typical entry points in this module are [`Repository::discover`] and
+//! [`Repository::open`], followed by [`Repository::repository_changes`],
 //! [`Repository::path_changes`], or [`Repository::file_change`].
+//!
+//! # Example
+//!
+//! The following example shows how to implement a custom safe-to-modify policy
+//! by querying repository changes directly.
+//!
+//! ```no_run
+//! use std::{error::Error, path::Path};
+//!
+//! use vcs_modify_guard::repository::Repository;
+//!
+//! struct PolicyOptions {
+//!     allow_no_vcs: bool,
+//!     allow_dirty: bool,
+//!     allow_staged: bool,
+//! }
+//!
+//! fn ensure_safe_to_modify(
+//!     target_dir: &Path,
+//!     options: &PolicyOptions,
+//! ) -> Result<(), Box<dyn Error>> {
+//!     // Match `cargo fix` exactly:
+//!     // - `--allow-no-vcs` allows running even when no repository is found.
+//!     // - `--allow-dirty` allows worktree changes, staged changes, and
+//!     //   untracked files.
+//!     // - `--allow-staged` allows staged changes, but still rejects
+//!     //   worktree changes and untracked files.
+//!     if options.allow_no_vcs {
+//!         return Ok(());
+//!     }
+//!
+//!     let Some(repo) = Repository::discover(target_dir)? else {
+//!         return Err("no VCS found for the target directory".into());
+//!     };
+//!
+//!     let Some(changes) = repo.repository_changes()? else {
+//!         return Ok(());
+//!     };
+//!
+//!     if options.allow_dirty {
+//!         return Ok(());
+//!     }
+//!
+//!     if changes.has_modified_files() || changes.has_untracked_files() {
+//!         return Err(
+//!             "the repository containing the target directory has uncommitted changes".into(),
+//!         );
+//!     }
+//!
+//!     if options.allow_staged {
+//!         return Ok(());
+//!     }
+//!
+//!     if changes.has_staged_files() {
+//!         return Err("the repository containing the target directory has staged changes".into());
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! See the `repository` example for a complete command-line application.
 
 use std::{
     path::{Path, PathBuf},
@@ -16,32 +81,36 @@ use std::{
 };
 
 use crate::{
-    VcsStatusError,
+    ModifyGuardError,
     vcs::{self, VcsRepository},
 };
 
 #[cfg(test)]
 mod tests;
 
-/// A handle for querying changes in a VCS repository worktree.
+/// A lower-level handle for querying changes in a VCS repository worktree.
 ///
-/// This type is used to check whether a CLI tool may safely modify files,
-/// such as for `--allow-*` style checks.
+/// Most users should start with [`crate::AllowOptions`], which implements the
+/// crate's built-in `--allow-*` safe-to-modify policy.
+///
+/// Use this type when you need to discover a repository and inspect modified,
+/// staged, or untracked files directly in order to implement custom policy
+/// logic.
 ///
 /// Repositories without a worktree, such as Git bare repositories, are not
 /// represented by this type.
 ///
 /// # Example
 ///
-/// The following example shows how to validate the changes in a repository
-/// before performing an operation that may modify files.
+/// The following example shows how to implement a custom safe-to-modify
+/// policy by querying repository changes directly.
 ///
 /// ```no_run
 /// use std::{error::Error, path::Path};
 ///
-/// use vcs_status::Repository;
+/// use vcs_modify_guard::repository::Repository;
 ///
-/// struct AllowOptions {
+/// struct PolicyOptions {
 ///     allow_no_vcs: bool,
 ///     allow_dirty: bool,
 ///     allow_staged: bool,
@@ -49,7 +118,7 @@ mod tests;
 ///
 /// fn ensure_safe_to_modify(
 ///     target_dir: &Path,
-///     options: &AllowOptions,
+///     options: &PolicyOptions,
 /// ) -> Result<(), Box<dyn Error>> {
 ///     // Match `cargo fix` exactly:
 ///     // - `--allow-no-vcs` allows running even when no repository is found.
@@ -114,7 +183,7 @@ impl Repository {
     /// - the discovered repository does not provide a worktree for file
     ///   change checks
     #[inline]
-    pub fn discover<P>(path: P) -> Result<Option<Self>, VcsStatusError>
+    pub fn discover<P>(path: P) -> Result<Option<Self>, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -137,7 +206,7 @@ impl Repository {
     /// - `path` does not refer to a supported repository worktree
     /// - the backend fails to open it
     #[inline]
-    pub fn open<P>(path: P) -> Result<Self, VcsStatusError>
+    pub fn open<P>(path: P) -> Result<Self, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -166,7 +235,7 @@ impl Repository {
     ///
     /// Returns an error if the backend fails to query repository changes.
     #[inline]
-    pub fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    pub fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         self.inner.repository_changes()
     }
 
@@ -202,7 +271,7 @@ impl Repository {
     /// - `path` could not be resolved to a canonical path for any other reason
     /// - the backend fails to query changes for `path` for any other reason
     #[inline]
-    pub fn path_changes<P>(&self, path: P) -> Result<Option<RepositoryChanges>, VcsStatusError>
+    pub fn path_changes<P>(&self, path: P) -> Result<Option<RepositoryChanges>, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -246,7 +315,7 @@ impl Repository {
     /// - `path` could not be resolved to a canonical path for any other reason
     /// - the backend fails to query file changes for any other reason
     #[inline]
-    pub fn file_change<P>(&self, path: P) -> Result<Option<FileChange>, VcsStatusError>
+    pub fn file_change<P>(&self, path: P) -> Result<Option<FileChange>, ModifyGuardError>
     where
         P: AsRef<Path>,
     {

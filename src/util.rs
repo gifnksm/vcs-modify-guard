@@ -12,9 +12,9 @@ use std::{
 
 use snafu::{IntoError as _, OptionExt as _, ensure};
 
-use crate::{VcsStatusError, error};
+use crate::{ModifyGuardError, error};
 
-pub(crate) fn read_path_metadata(path: &Path) -> Result<Metadata, VcsStatusError> {
+pub(crate) fn read_path_metadata(path: &Path) -> Result<Metadata, ModifyGuardError> {
     path.metadata().map_err(|source| {
         if source.kind() == io::ErrorKind::NotFound {
             error::PathNotFoundSnafu { path }.build()
@@ -24,24 +24,24 @@ pub(crate) fn read_path_metadata(path: &Path) -> Result<Metadata, VcsStatusError
     })
 }
 
-pub(crate) fn ensure_path_exists(path: &Path) -> Result<(), VcsStatusError> {
+pub(crate) fn ensure_path_exists(path: &Path) -> Result<(), ModifyGuardError> {
     let _metadata = read_path_metadata(path)?;
     Ok(())
 }
 
-pub(crate) fn ensure_path_is_directory(path: &Path) -> Result<(), VcsStatusError> {
+pub(crate) fn ensure_path_is_directory(path: &Path) -> Result<(), ModifyGuardError> {
     let metadata = read_path_metadata(path)?;
     ensure!(metadata.is_dir(), error::PathNotADirectorySnafu { path });
     Ok(())
 }
 
-pub(crate) fn ensure_path_is_file(path: &Path) -> Result<(), VcsStatusError> {
+pub(crate) fn ensure_path_is_file(path: &Path) -> Result<(), ModifyGuardError> {
     let metadata = read_path_metadata(path)?;
     ensure!(metadata.is_file(), error::PathNotAFileSnafu { path });
     Ok(())
 }
 
-fn canonicalize_path<P>(path: P) -> Result<PathBuf, VcsStatusError>
+fn canonicalize_path<P>(path: P) -> Result<PathBuf, ModifyGuardError>
 where
     P: AsRef<Path>,
 {
@@ -78,7 +78,7 @@ impl From<NormalizedWorktreePath> for PathBuf {
 }
 
 impl NormalizedWorktreePath {
-    fn new<P>(path: P) -> Result<Self, VcsStatusError>
+    fn new<P>(path: P) -> Result<Self, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -139,7 +139,7 @@ impl NormalizedWorktreePath {
 pub(crate) fn normalize_to_worktree_path<P, Q>(
     worktree_path: P,
     path: Q,
-) -> Result<NormalizedWorktreePath, VcsStatusError>
+) -> Result<NormalizedWorktreePath, ModifyGuardError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -254,7 +254,7 @@ mod tests {
     fn normalize_to_worktree_path_rejects_path_outside_worktree(file_tree: PathInTempDir) {
         let path = file_tree;
         let err = normalize_to_worktree_path(&path, path.child("a/../../X.txt")).unwrap_err();
-        assert_matches!(err, VcsStatusError::InvalidWorktreeRelativePath { .. });
+        assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
     // `normalize_to_worktree_path` trims missing trailing components only after
@@ -266,7 +266,7 @@ mod tests {
     fn normalize_to_worktree_path_rejects_dotdot_left_in_missing_suffix(file_tree: PathInTempDir) {
         let path = file_tree;
         let err = normalize_to_worktree_path(&path, path.child("a/X/../../X.txt")).unwrap_err();
-        assert_matches!(err, VcsStatusError::InvalidWorktreeRelativePath { .. });
+        assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
     // `normalize_to_worktree_path` trims missing trailing components only after
@@ -292,7 +292,7 @@ mod tests {
     ) {
         let path = file_tree;
         let err = normalize_to_worktree_path(&path, path.child("a/X/X/X/X/../../")).unwrap_err();
-        assert_matches!(err, VcsStatusError::InvalidWorktreeRelativePath { .. });
+        assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
     #[rstest]

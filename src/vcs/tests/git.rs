@@ -10,7 +10,7 @@ use rstest::*;
 use rstest_reuse::*;
 
 use crate::{
-    VcsStatusError,
+    ModifyGuardError,
     repository::FileChange,
     testing::{AssertFileChange, AssertRepositoryChanges, PathInTempDir},
     vcs::{self, VcsBackend},
@@ -427,7 +427,7 @@ fn discover_returns_err_for_bare_repository(
 ) {
     let path = bare_repository.path();
     let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::RepositoryWithoutWorktree { .. });
+    assert_matches!(err, ModifyGuardError::RepositoryWithoutWorktree { .. });
 }
 
 #[apply(all_backends)]
@@ -438,7 +438,7 @@ fn discover_returns_err_for_non_existent_path(
 ) {
     let path = non_existent_path.path();
     let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotFound { .. });
+    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
 }
 
 #[cfg(unix)]
@@ -450,7 +450,7 @@ fn discover_returns_err_for_inaccessible_path(
 ) {
     let path = inaccessible_path.path();
     let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::InaccessiblePath { .. });
+    assert_matches!(err, ModifyGuardError::InaccessiblePath { .. });
 }
 
 #[apply(all_backends)]
@@ -482,7 +482,7 @@ fn open_returns_err_for_worktree_file(
 ) {
     let path = clean_worktree_with_subdir.child(SUBDIR_CLEAN_FILE);
     let err = backend.open(&path).unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotADirectory { .. });
+    assert_matches!(err, ModifyGuardError::PathNotADirectory { .. });
 }
 
 #[apply(all_backends)]
@@ -500,7 +500,7 @@ fn open_returns_none_for_non_git_directory(
 fn open_returns_err_for_bare_repository(backend: &dyn VcsBackend, bare_repository: PathInTempDir) {
     let path = bare_repository.path();
     let err = backend.open(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::RepositoryWithoutWorktree { .. });
+    assert_matches!(err, ModifyGuardError::RepositoryWithoutWorktree { .. });
 }
 
 #[apply(all_backends)]
@@ -511,7 +511,7 @@ fn open_returns_err_for_non_existent_path(
 ) {
     let path = non_existent_path.path();
     let err = backend.open(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotFound { .. });
+    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
 }
 
 #[cfg(unix)]
@@ -523,7 +523,7 @@ fn open_returns_err_for_inaccessible_path(
 ) {
     let path = inaccessible_path.path();
     let err = backend.open(path).unwrap_err();
-    assert_matches!(err, VcsStatusError::InaccessiblePath { .. });
+    assert_matches!(err, ModifyGuardError::InaccessiblePath { .. });
 }
 
 #[apply(all_backends)]
@@ -765,7 +765,7 @@ fn path_changes_rejects_non_existent_path(
     let repo = backend.open(path).unwrap().unwrap();
     for query in ["xxx", "subdir/xxx.txt"] {
         let err = repo.path_changes(Path::new(query)).unwrap_err();
-        assert_matches!(err, VcsStatusError::PathNotFound { .. });
+        assert_matches!(err, ModifyGuardError::PathNotFound { .. });
     }
 }
 
@@ -990,7 +990,7 @@ fn file_change_rejects_non_existent_file(backend: &dyn VcsBackend, clean_worktre
     let err = repo
         .file_change(Path::new("non_existent_file.txt"))
         .unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotFound { .. });
+    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
 }
 
 #[apply(all_backends)]
@@ -1050,7 +1050,7 @@ fn file_change_rejects_empty_path(
     let repo = backend.open(path).unwrap().unwrap();
 
     let err = repo.file_change(Path::new("")).unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotAFile { .. });
+    assert_matches!(err, ModifyGuardError::PathNotAFile { .. });
 }
 
 #[apply(all_backends)]
@@ -1096,7 +1096,7 @@ fn file_change_rejects_directory_path(
     let path = clean_worktree_with_subdir.path();
     let repo = backend.open(path).unwrap().unwrap();
     let err = repo.file_change(Path::new("subdir")).unwrap_err();
-    assert_matches!(err, VcsStatusError::PathNotAFile { .. });
+    assert_matches!(err, ModifyGuardError::PathNotAFile { .. });
 }
 
 #[apply(all_backends)]

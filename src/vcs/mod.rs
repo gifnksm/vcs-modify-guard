@@ -3,7 +3,7 @@ use std::{fmt::Debug, path::Path};
 #[cfg(feature = "git-libgit2")]
 pub use self::git_libgit2::Libgit2BackendError;
 use crate::{
-    error::{self, VcsStatusError},
+    error::{self, ModifyGuardError},
     repository::{FileChange, RepositoryChanges},
 };
 
@@ -13,8 +13,8 @@ mod git_libgit2;
 mod tests;
 
 trait VcsBackend: Debug + Send + Sync {
-    fn discover(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, VcsStatusError>;
-    fn open(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, VcsStatusError>;
+    fn discover(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, ModifyGuardError>;
+    fn open(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, ModifyGuardError>;
 }
 
 static BACKENDS: &[&dyn VcsBackend] = &[
@@ -22,7 +22,7 @@ static BACKENDS: &[&dyn VcsBackend] = &[
     &git_libgit2::BACKEND,
 ];
 
-pub(crate) fn discover(path: &Path) -> Result<Option<Box<dyn VcsRepository>>, VcsStatusError> {
+pub(crate) fn discover(path: &Path) -> Result<Option<Box<dyn VcsRepository>>, ModifyGuardError> {
     for backend in BACKENDS {
         if let Some(repo) = backend.discover(path)? {
             return Ok(Some(repo));
@@ -31,7 +31,7 @@ pub(crate) fn discover(path: &Path) -> Result<Option<Box<dyn VcsRepository>>, Vc
     Ok(None)
 }
 
-pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, VcsStatusError> {
+pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, ModifyGuardError> {
     for backend in BACKENDS {
         if let Some(repo) = backend.open(path)? {
             return Ok(repo);
@@ -42,9 +42,9 @@ pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, VcsStatusError
 
 pub(crate) trait VcsRepository: Debug {
     fn worktree(&self) -> &Path;
-    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError>;
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError>;
-    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError>;
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
+    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, ModifyGuardError>;
 }
 
 // assert that VcsRepository is dyn safe

@@ -7,7 +7,7 @@ use snafu::{IntoError as _, ResultExt as _, Snafu};
 
 use super::VcsRepository;
 use crate::{
-    error::{self, VcsStatusError},
+    error::{self, ModifyGuardError},
     repository::{FileChange, RepositoryChanges},
     util::{self, NormalizedWorktreePath},
     vcs::VcsBackend,
@@ -56,7 +56,7 @@ pub enum Libgit2BackendError {
     },
 }
 
-impl From<Libgit2BackendError> for VcsStatusError {
+impl From<Libgit2BackendError> for ModifyGuardError {
     #[inline]
     fn from(source: Libgit2BackendError) -> Self {
         Self::Backend {
@@ -66,7 +66,7 @@ impl From<Libgit2BackendError> for VcsStatusError {
 }
 
 impl VcsBackend for Libgit2Backend {
-    fn discover(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, VcsStatusError> {
+    fn discover(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, ModifyGuardError> {
         util::ensure_path_exists(path)?;
         let repo = match git2::Repository::discover(path) {
             Ok(repo) => repo,
@@ -82,7 +82,7 @@ impl VcsBackend for Libgit2Backend {
         Ok(Some(Box::new(Libgit2Repository { repo, worktree })))
     }
 
-    fn open(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, VcsStatusError> {
+    fn open(&self, path: &Path) -> Result<Option<Box<dyn VcsRepository>>, ModifyGuardError> {
         util::ensure_path_is_directory(path)?;
         let repo = match git2::Repository::open(path) {
             Ok(repo) => repo,
@@ -118,11 +118,11 @@ impl VcsRepository for Libgit2Repository {
         &self.worktree
     }
 
-    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         self.directory_path_changes(None)
     }
 
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         let path = util::normalize_to_worktree_path(&self.worktree, path)?;
         let is_dir = match &path {
             NormalizedWorktreePath::Existing(path) => {
@@ -142,7 +142,7 @@ impl VcsRepository for Libgit2Repository {
         Ok(change.and_then(|change| RepositoryChanges::new([change])))
     }
 
-    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, VcsStatusError> {
+    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
         let path = util::normalize_to_worktree_path(&self.worktree, path)?;
         match &path {
             NormalizedWorktreePath::Existing(path) => {
@@ -159,7 +159,7 @@ impl Libgit2Repository {
     fn directory_path_changes(
         &self,
         path: Option<&NormalizedWorktreePath>,
-    ) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    ) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         let mut repo_opts = git2::StatusOptions::new();
         if let Some(path) = path {
             repo_opts.pathspec(path.as_path());
@@ -194,7 +194,7 @@ impl Libgit2Repository {
     fn file_path_change(
         &self,
         path: NormalizedWorktreePath,
-    ) -> Result<Option<FileChange>, VcsStatusError> {
+    ) -> Result<Option<FileChange>, ModifyGuardError> {
         let status = match self.repo.status_file(path.as_path()) {
             Ok(status) => status,
             Err(source) if source.code() == git2::ErrorCode::NotFound => {

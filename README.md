@@ -1,24 +1,36 @@
 <!-- cargo-sync-rdme title [[ -->
-# vcs-status
+# vcs-modify-guard
 <!-- cargo-sync-rdme ]] -->
 <!-- cargo-sync-rdme badge [[ -->
 [![Maintenance: actively-developed](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg?style=flat-square)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section)
-[![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/vcs-status.svg?style=flat-square)](#license)
-[![crates.io](https://img.shields.io/crates/v/vcs-status.svg?logo=rust&style=flat-square)](https://crates.io/crates/vcs-status)
-[![docs.rs](https://img.shields.io/docsrs/vcs-status.svg?logo=docs.rs&style=flat-square)](https://docs.rs/vcs-status)
+[![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/vcs-modify-guard.svg?style=flat-square)](#license)
+[![crates.io](https://img.shields.io/crates/v/vcs-modify-guard.svg?logo=rust&style=flat-square)](https://crates.io/crates/vcs-modify-guard)
+[![docs.rs](https://img.shields.io/docsrs/vcs-modify-guard.svg?logo=docs.rs&style=flat-square)](https://docs.rs/vcs-modify-guard)
 [![Rust: ^1.96.0](https://img.shields.io/badge/rust-^1.96.0-93450a.svg?logo=rust&style=flat-square)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
-[![GitHub Actions: CI](https://img.shields.io/github/actions/workflow/status/gifnksm/vcs-status/ci.yml.svg?label=CI&logo=github&style=flat-square)](https://github.com/gifnksm/vcs-status/actions/workflows/ci.yml)
-[![Codecov](https://img.shields.io/codecov/c/github/gifnksm/vcs-status.svg?label=codecov&logo=codecov&style=flat-square)](https://codecov.io/gh/gifnksm/vcs-status)
+[![GitHub Actions: CI](https://img.shields.io/github/actions/workflow/status/gifnksm/vcs-modify-guard/ci.yml.svg?label=CI&logo=github&style=flat-square)](https://github.com/gifnksm/vcs-modify-guard/actions/workflows/ci.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/gifnksm/vcs-modify-guard.svg?label=codecov&logo=codecov&style=flat-square)](https://codecov.io/gh/gifnksm/vcs-modify-guard)
 <!-- cargo-sync-rdme ]] -->
 
 <!-- cargo-sync-rdme rustdoc [[ -->
 Help CLI tools decide whether it is safe to modify files in a VCS
 working tree.
 
-`vcs-status` provides a small abstraction over version control systems
-for checking whether a working tree has modified, staged, or untracked
-files. It is intended for CLI tools that implement options such as
-`--allow-dirty`, `--allow-staged`, and `--allow-no-vcs`.
+`vcs-modify-guard` helps CLI tools enforce `--allow-dirty`,
+`--allow-staged`, and `--allow-no-vcs` style checks before they modify
+files.
+
+This crate provides two layers of API:
+
+* [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html) is the main entry point. It implements `cargo fix`-style
+  safe-to-modify checks and returns a [`CheckResult`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/enum.CheckResult.html) describing whether an
+  operation is allowed or blocked.
+* [`repository::Repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html) is a lower-level API for tools that need to
+  discover a repository and inspect modified, staged, or untracked files to
+  implement their own policy.
+
+Most users should start with [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html). Reach for
+[`repository::Repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html) only when you need custom behavior beyond the
+built-in `--allow-*` semantics.
 
 ## Example
 
@@ -29,7 +41,7 @@ before performing an operation that may modify files.
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use vcs_status::{AllowOptions, CheckResult};
+use vcs_modify_guard::{AllowOptions, CheckResult};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -80,13 +92,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 See the `allow_options` example for a complete command-line application.
 
+If you need custom policy logic instead of the built-in `--allow-*`
+behavior, see the [`repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/index.html) module for direct repository discovery and
+change query APIs.
+
 ## Usage
 
 Add this to your `Cargo.toml`:
 
 ````toml
 [dependencies]
-vcs-status = "0.1.0"
+vcs-modify-guard = "0.1.0"
 ````
 <!-- cargo-sync-rdme ]] -->
 
@@ -102,9 +118,9 @@ Once a crate has reached 1.x, any MSRV bump will be accompanied by a new minor v
 
 This project is licensed under either of
 
-- Apache License, Version 2.0
+* Apache License, Version 2.0
    ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license
+* MIT license
    ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.

@@ -1,11 +1,16 @@
 use std::path::{Path, PathBuf};
 
-use crate::{Repository, VcsStatusError, repository::RepositoryChanges};
+use crate::{
+    ModifyGuardError,
+    repository::{Repository, RepositoryChanges},
+};
 
 #[cfg(test)]
 mod tests;
 
 /// Options for `--allow-*` style safety checks before modifying files.
+///
+/// This is the main entry point for most users of this crate.
 ///
 /// This type matches the semantics of `cargo fix`:
 ///
@@ -25,7 +30,7 @@ mod tests;
 /// ```no_run
 /// use std::path::Path;
 ///
-/// use vcs_status::{AllowOptions, CheckResult};
+/// use vcs_modify_guard::{AllowOptions, CheckResult};
 ///
 /// let result = AllowOptions::new()
 ///     .allow_staged(true)
@@ -49,7 +54,7 @@ mod tests;
 ///         }
 ///     }
 /// }
-/// # Ok::<(), vcs_status::VcsStatusError>(())
+/// # Ok::<(), vcs_modify_guard::ModifyGuardError>(())
 /// ```
 #[expect(
     missing_copy_implementations,
@@ -129,7 +134,7 @@ impl AllowOptions {
         &self,
         repo: &R,
         path: &Path,
-    ) -> Result<Option<RepositoryChanges>, VcsStatusError>
+    ) -> Result<Option<RepositoryChanges>, ModifyGuardError>
     where
         R: AllowOptionsRepository,
     {
@@ -155,7 +160,7 @@ impl AllowOptions {
     /// resolved for change queries, or if the backend fails to query the
     /// relevant changes.
     #[inline]
-    pub fn check_safe_to_modify<P>(&self, path: P) -> Result<CheckResult, VcsStatusError>
+    pub fn check_safe_to_modify<P>(&self, path: P) -> Result<CheckResult, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -166,7 +171,7 @@ impl AllowOptions {
         &self,
         path: P,
         backend: &B,
-    ) -> Result<CheckResult, VcsStatusError>
+    ) -> Result<CheckResult, ModifyGuardError>
     where
         P: AsRef<Path>,
         B: AllowOptionsBackend,
@@ -238,13 +243,13 @@ impl AllowOptions {
 trait AllowOptionsBackend {
     type Repo: AllowOptionsRepository;
 
-    fn discover(&self, path: &Path) -> Result<Option<Self::Repo>, VcsStatusError>;
+    fn discover(&self, path: &Path) -> Result<Option<Self::Repo>, ModifyGuardError>;
 }
 
 trait AllowOptionsRepository {
     fn worktree(&self) -> &Path;
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError>;
-    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError>;
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
 }
 
 struct RealBackend;
@@ -252,7 +257,7 @@ struct RealBackend;
 impl AllowOptionsBackend for RealBackend {
     type Repo = Repository;
 
-    fn discover(&self, path: &Path) -> Result<Option<Self::Repo>, VcsStatusError> {
+    fn discover(&self, path: &Path) -> Result<Option<Self::Repo>, ModifyGuardError> {
         Repository::discover(path)
     }
 }
@@ -261,10 +266,10 @@ impl AllowOptionsRepository for Repository {
     fn worktree(&self) -> &Path {
         self.worktree()
     }
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         self.path_changes(path)
     }
-    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, VcsStatusError> {
+    fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         self.repository_changes()
     }
 }

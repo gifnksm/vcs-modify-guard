@@ -55,7 +55,7 @@
 //!         return Ok(());
 //!     }
 //!
-//!     if changes.has_modified_files() || changes.has_untracked_files() {
+//!     if changes.has_dirty_files() {
 //!         return Err(
 //!             "the repository containing the target directory has uncommitted changes".into(),
 //!         );
@@ -142,7 +142,7 @@ mod tests;
 ///         return Ok(());
 ///     }
 ///
-///     if changes.has_modified_files() || changes.has_untracked_files() {
+///     if changes.has_dirty_files() {
 ///         return Err(
 ///             "the repository containing the target directory has uncommitted changes".into(),
 ///         );
@@ -452,6 +452,16 @@ impl RepositoryChanges {
     pub fn has_untracked_files(&self) -> bool {
         self.num_untracked_files > 0
     }
+
+    /// Returns whether this change set contains any dirty files.
+    ///
+    /// A dirty file has unstaged modifications or is untracked.
+    /// Staged-only changes are not considered dirty.
+    #[inline]
+    #[must_use]
+    pub fn has_dirty_files(&self) -> bool {
+        self.has_modified_files() || self.has_untracked_files()
+    }
 }
 
 /// A file change within a repository.
@@ -521,8 +531,8 @@ impl FileChange {
 
     /// Returns whether the file is dirty.
     ///
-    /// In this crate, a dirty file is a file with unstaged modifications or an
-    /// untracked file. Staged-only changes are not considered dirty.
+    /// A dirty file has unstaged modifications or is untracked.
+    /// Staged-only changes are not considered dirty.
     #[inline]
     #[must_use]
     pub fn is_dirty(&self) -> bool {

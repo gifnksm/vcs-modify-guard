@@ -78,7 +78,7 @@ fn ensure_safe_to_modify(target_dir: &Path, options: &Options) -> Result<(), Box
         return Ok(());
     }
 
-    if changes.has_modified_files() || changes.has_untracked_files() {
+    if changes.has_dirty_files() {
         return Err(
             "the repository containing the target directory has uncommitted changes; if you'd like to suppress this error pass `--allow-dirty`".into(),
         );

@@ -8,8 +8,8 @@
 //! This crate provides two layers of API:
 //!
 //! - [`AllowOptions`] is the main entry point. It implements `cargo fix`-style
-//!   safe-to-modify checks and returns a [`CheckResult`] describing whether an
-//!   operation is allowed or blocked.
+//!   safe-to-modify checks and returns a [`ModificationSafety`] describing whether
+//!   modification is safe. By default, checks are scoped to the queried path.
 //! - [`repository::Repository`] is a lower-level API for tools that need to
 //!   discover a repository and inspect modified, staged, or untracked files to
 //!   implement their own policy.
@@ -20,14 +20,14 @@
 //!
 //! # Example
 //!
-//! The following example shows how to validate the changes in a repository
-//! before performing an operation that may modify files.
+//! The following example shows how to validate whether a target path is safe
+//! to modify before performing an operation that may modify files.
 //!
 //! ```no_run
 //! use std::path::{Path, PathBuf};
 //!
 //! use clap::Parser;
-//! use vcs_modify_guard::{AllowOptions, CheckResult};
+//! use vcs_modify_guard::{AllowOptions, ModificationSafety, UnsafeModificationReason};
 //!
 //! #[derive(Debug, Parser)]
 //! struct Args {
@@ -49,23 +49,25 @@
 //!     let args = Args::parse();
 //!
 //!     let target = args.target.as_deref().unwrap_or_else(|| Path::new("."));
-//!     let result = AllowOptions::new()
+//!     let safety = AllowOptions::new()
 //!         .allow_no_vcs(args.allow_no_vcs)
 //!         .allow_dirty(args.allow_dirty)
 //!         .allow_staged(args.allow_staged)
 //!         .check_safe_to_modify(target)?;
 //!
-//!     match result {
-//!         CheckResult::Allowed => {}
-//!         CheckResult::BlockedByNoVcs => {
-//!             return Err("blocked by no VCS".into());
-//!         }
-//!         CheckResult::BlockedByDirty { .. } => {
-//!             return Err("blocked by dirty files".into());
-//!         }
-//!         CheckResult::BlockedByStaged { .. } => {
-//!             return Err("blocked by staged changes".into());
-//!         }
+//!     match safety {
+//!         ModificationSafety::Safe => {}
+//!         ModificationSafety::Unsafe(reason) => match reason {
+//!             UnsafeModificationReason::NoVcs => {
+//!                 return Err("blocked by no VCS".into());
+//!             }
+//!             UnsafeModificationReason::Dirty { .. } => {
+//!                 return Err("blocked by dirty files".into());
+//!             }
+//!             UnsafeModificationReason::Staged { .. } => {
+//!                 return Err("blocked by staged changes".into());
+//!             }
+//!         },
 //!     }
 //!
 //!     eprintln!("Proceeding...");

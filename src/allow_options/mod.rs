@@ -14,12 +14,22 @@ mod tests;
 ///
 /// This type matches the semantics of `cargo fix`:
 ///
-/// - `allow_no_vcs` allows modifying the path even when no supported VCS
+/// - `allow_no_vcs` treats modification as safe even when no supported VCS
 ///   repository is found
-/// - `allow_dirty` allows modifying the path even when it is dirty or has
-///   staged changes
-/// - `allow_staged` allows modifying the path even when it has staged changes,
-///   but still rejects dirty files
+/// - `allow_dirty` treats modification as safe even when the path is dirty or
+///   has staged changes
+/// - `allow_staged` treats modification as safe even when the path has staged
+///   changes, but still considers dirty files unsafe
+///
+/// These options are not interpreted independently. Higher-precedence options
+/// imply lower-precedence ones, matching `cargo fix`:
+///
+/// - `allow_no_vcs` skips repository discovery and repository state checks
+///   entirely
+/// - `allow_dirty` still requires repository discovery, but implies
+///   `allow_staged` and skips dirty and staged change checks
+/// - `allow_staged` still requires repository discovery and change queries,
+///   but dirty files remain unsafe
 ///
 /// By default, checks are scoped to the queried path. Use
 /// [`Self::check_entire_repository`] to check the containing repository as a
@@ -30,31 +40,45 @@ mod tests;
 /// ```no_run
 /// use std::path::Path;
 ///
-/// use vcs_modify_guard::{AllowOptions, CheckResult};
+/// use vcs_modify_guard::{AllowOptions, ModificationSafety, UnsafeModificationReason};
 ///
-/// let result = AllowOptions::new()
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let safety = AllowOptions::new()
 ///     .allow_staged(true)
 ///     .check_safe_to_modify(Path::new("."))?;
 ///
-/// match result {
-///     CheckResult::Allowed => {}
-///     CheckResult::BlockedByNoVcs => {
-///         eprintln!("The target path is not in a VCS repository.");
-///     }
-///     CheckResult::BlockedByDirty { dirty_files, .. } => {
-///         eprintln!("Dirty files:");
-///         for wt_path in dirty_files {
-///             eprintln!("* {}", wt_path.display());
+/// match safety {
+///     ModificationSafety::Safe => {}
+///     ModificationSafety::Unsafe(reason) => match reason {
+///         UnsafeModificationReason::NoVcs => {
+///             eprintln!("The target path is not in a VCS repository.");
+///             return Err("blocked by no VCS".into());
 ///         }
-///     }
-///     CheckResult::BlockedByStaged { staged_files, .. } => {
-///         eprintln!("Staged files:");
-///         for wt_path in staged_files {
-///             eprintln!("* {}", wt_path.display());
+///         UnsafeModificationReason::Dirty {
+///             dirty_files,
+///             staged_files,
+///             ..
+///         } => {
+///             eprintln!("Dirty files:");
+///             for wt_path in dirty_files {
+///                 eprintln!("* {}", wt_path.display());
+///             }
+///             for wt_path in staged_files {
+///                 eprintln!("* {} (staged)", wt_path.display());
+///             }
+///             return Err("blocked by dirty files".into());
 ///         }
-///     }
+///         UnsafeModificationReason::Staged { staged_files, .. } => {
+///             eprintln!("Staged files:");
+///             for wt_path in staged_files {
+///                 eprintln!("* {}", wt_path.display());
+///             }
+///             return Err("blocked by staged changes".into());
+///         }
+///     },
 /// }
-/// # Ok::<(), vcs_modify_guard::ModifyGuardError>(())
+/// # Ok(())
+/// # }
 /// ```
 #[expect(
     missing_copy_implementations,
@@ -92,8 +116,11 @@ impl AllowOptions {
         }
     }
 
-    /// Sets whether to allow modifying the queried path when no supported VCS
-    /// repository is found.
+    /// Sets whether to use `cargo fix`-style `--allow-no-vcs` behavior.
+    ///
+    /// When enabled, this skips repository discovery and repository state
+    /// checks entirely, matching `cargo fix`. In other words, this does
+    /// more than only relax the "no repository found" case.
     #[inline]
     #[must_use]
     pub const fn allow_no_vcs(mut self, enabled: bool) -> Self {
@@ -101,9 +128,11 @@ impl AllowOptions {
         self
     }
 
-    /// Sets whether to allow dirty files and staged changes.
+    /// Sets whether to use `cargo fix`-style `--allow-dirty` behavior.
     ///
-    /// When enabled, this also allows staged changes, matching `cargo fix`.
+    /// When enabled, this still requires repository discovery unless
+    /// [`Self::allow_no_vcs`] is enabled, but it treats both dirty files and
+    /// staged changes as safe. This also implies [`Self::allow_staged`].
     #[inline]
     #[must_use]
     pub const fn allow_dirty(mut self, enabled: bool) -> Self {
@@ -111,9 +140,11 @@ impl AllowOptions {
         self
     }
 
-    /// Sets whether to allow staged changes.
+    /// Sets whether to use `cargo fix`-style `--allow-staged` behavior.
     ///
-    /// Dirty files are still rejected when this option is enabled.
+    /// When enabled, this still requires repository discovery and change
+    /// queries unless [`Self::allow_no_vcs`] is enabled. Dirty files are still
+    /// considered unsafe.
     #[inline]
     #[must_use]
     pub const fn allow_staged(mut self, enabled: bool) -> Self {
@@ -121,8 +152,8 @@ impl AllowOptions {
         self
     }
 
-    /// Sets whether checks should cover the entire containing repository
-    /// rather than only the queried path.
+    /// Sets whether the safety check should cover the entire containing
+    /// repository rather than only the queried path.
     #[inline]
     #[must_use]
     pub const fn check_entire_repository(mut self, enabled: bool) -> Self {
@@ -146,15 +177,22 @@ impl AllowOptions {
         }
     }
 
-    /// Checks whether it is safe to modify `path` under the current
-    /// `--allow-*` settings.
+    /// Checks whether modification of `path` is considered safe under the
+    /// current `--allow-*` settings.
     ///
-    /// This discovers the containing repository for `path`, unless
-    /// [`Self::allow_no_vcs`] is enabled.
+    /// Flag handling matches `cargo fix`:
     ///
-    /// When [`Self::check_entire_repository`] is disabled, the check is scoped
-    /// to `path` after resolving it within the containing repository worktree.
-    /// When enabled, the entire containing repository is checked.
+    /// - [`Self::allow_no_vcs`] returns [`ModificationSafety::Safe`] and skips
+    ///   repository discovery and repository state checks
+    /// - [`Self::allow_dirty`] still requires repository discovery, but returns
+    ///   [`ModificationSafety::Safe`] and skips rejecting dirty or staged
+    ///   changes
+    /// - [`Self::allow_staged`] still requires repository discovery and change
+    ///   queries, but dirty files remain unsafe
+    ///
+    /// When [`Self::check_entire_repository`] is disabled, the safety check is
+    /// scoped to `path` after resolving it within the containing repository
+    /// worktree. When enabled, the entire containing repository is checked.
     ///
     /// # Errors
     ///
@@ -162,7 +200,7 @@ impl AllowOptions {
     /// resolved for change queries, or if the backend fails to query the
     /// relevant changes.
     #[inline]
-    pub fn check_safe_to_modify<P>(&self, path: P) -> Result<CheckResult, ModifyGuardError>
+    pub fn check_safe_to_modify<P>(&self, path: P) -> Result<ModificationSafety, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
@@ -173,35 +211,35 @@ impl AllowOptions {
         &self,
         path: P,
         backend: &B,
-    ) -> Result<CheckResult, ModifyGuardError>
+    ) -> Result<ModificationSafety, ModifyGuardError>
     where
         P: AsRef<Path>,
         B: AllowOptionsBackend,
     {
         // Match `cargo fix` exactly:
-        // - `--allow-no-vcs` allows modifying the path even if a VCS was not
-        //   detected.
-        // - `--allow-dirty` allows modifying the path even if it is dirty or
-        //   has staged changes.
-        // - `--allow-staged` allows modifying the path even if it has staged
-        //   changes.
+        // - `--allow-no-vcs` skips repository discovery and repository state
+        //   checks.
+        // - `--allow-dirty` still requires repository discovery, but skips
+        //   dirty and staged change checks.
+        // - `--allow-staged` still requires repository discovery and change
+        //   queries, but dirty files remain unsafe.
 
         let path = path.as_ref();
 
         if self.allow_no_vcs {
-            return Ok(CheckResult::Allowed);
+            return Ok(ModificationSafety::Safe);
         }
 
         let Some(repo) = backend.discover(path)? else {
-            return Ok(CheckResult::BlockedByNoVcs);
+            return Ok(UnsafeModificationReason::NoVcs.into());
         };
 
         if self.allow_dirty {
-            return Ok(CheckResult::Allowed);
+            return Ok(ModificationSafety::Safe);
         }
 
         let Some(changes) = self.find_changes(&repo, path)? else {
-            return Ok(CheckResult::Allowed);
+            return Ok(ModificationSafety::Safe);
         };
 
         let dirty_files = changes
@@ -212,13 +250,14 @@ impl AllowOptions {
 
         if self.allow_staged {
             if !dirty_files.is_empty() {
-                return Ok(CheckResult::BlockedByDirty {
+                return Ok(UnsafeModificationReason::Dirty {
                     worktree: repo.worktree().to_owned(),
                     dirty_files,
                     staged_files: vec![],
-                });
+                }
+                .into());
             }
-            return Ok(CheckResult::Allowed);
+            return Ok(ModificationSafety::Safe);
         }
 
         let staged_files = changes
@@ -228,17 +267,19 @@ impl AllowOptions {
             .collect::<Vec<_>>();
 
         if dirty_files.is_empty() {
-            return Ok(CheckResult::BlockedByStaged {
+            return Ok(UnsafeModificationReason::Staged {
                 worktree: repo.worktree().to_owned(),
                 staged_files,
-            });
+            }
+            .into());
         }
 
-        Ok(CheckResult::BlockedByDirty {
+        Ok(UnsafeModificationReason::Dirty {
             worktree: repo.worktree().to_owned(),
             dirty_files,
             staged_files,
-        })
+        }
+        .into())
     }
 }
 
@@ -280,37 +321,67 @@ impl AllowOptionsRepository for Repository {
     }
 }
 
-/// The result of checking whether a path may be safely modified.
+/// Whether modification of the queried target is considered safe under the
+/// current `--allow-*` policy.
+///
+/// This type describes the safety of modifying the queried target after
+/// applying the configured policy.
 #[expect(
     clippy::exhaustive_enums,
     reason = "Callers should exhaustively match the current outcomes; adding a new variant is an intentional breaking API change"
 )]
 #[derive(Debug)]
-pub enum CheckResult {
-    /// The operation is allowed.
-    Allowed,
-    /// The operation was blocked because no supported VCS repository was found.
-    BlockedByNoVcs,
-    /// The operation was blocked by dirty files.
+pub enum ModificationSafety {
+    /// Modification of the queried target is considered safe.
+    Safe,
+    /// Modification of the queried target is considered unsafe.
     ///
-    /// `staged_files` is non-empty only when staged changes also block the
-    /// operation.
-    BlockedByDirty {
-        /// The root directory of the repository worktree.
+    /// Contains the reason the modification is considered unsafe.
+    Unsafe(UnsafeModificationReason),
+}
+
+/// The reason modification of the queried target is considered unsafe under
+/// the current `--allow-*` policy.
+///
+/// This type explains why [`ModificationSafety::Unsafe`] was returned.
+#[derive(Debug)]
+#[expect(
+    clippy::exhaustive_enums,
+    reason = "Callers should exhaustively match the current outcomes; adding a new variant is an intentional breaking API change"
+)]
+pub enum UnsafeModificationReason {
+    /// Modification is considered unsafe because no supported VCS repository
+    /// was found for the queried target.
+    NoVcs,
+    /// Modification is considered unsafe because dirty files were found.
+    ///
+    /// `staged_files` is non-empty only when staged changes also make the
+    /// modification unsafe.
+    Dirty {
+        /// The root directory of the containing repository worktree.
         worktree: PathBuf,
-        /// Repository worktree-relative paths of files that block the
-        /// operation because they are dirty.
+        /// Worktree-relative paths of dirty files that make the modification
+        /// unsafe.
+        ///
+        /// This includes modified and untracked files.
         dirty_files: Vec<PathBuf>,
-        /// Repository worktree-relative paths of staged files that also block
-        /// the operation.
+        /// Worktree-relative paths of staged files that also make the
+        /// modification unsafe.
         staged_files: Vec<PathBuf>,
     },
-    /// The operation was blocked only by staged changes.
-    BlockedByStaged {
-        /// The root directory of the repository worktree.
+    /// Modification is considered unsafe because staged changes were found.
+    Staged {
+        /// The root directory of the containing repository worktree.
         worktree: PathBuf,
-        /// Repository worktree-relative paths of staged files that block the
-        /// operation.
+        /// Worktree-relative paths of staged files that make the modification
+        /// unsafe.
         staged_files: Vec<PathBuf>,
     },
+}
+
+impl From<UnsafeModificationReason> for ModificationSafety {
+    #[inline]
+    fn from(reason: UnsafeModificationReason) -> Self {
+        Self::Unsafe(reason)
+    }
 }

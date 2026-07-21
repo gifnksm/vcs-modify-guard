@@ -2,9 +2,8 @@ use std::fmt::Debug;
 
 use rstest::*;
 
-use crate::testing;
-
 use super::*;
+use crate::testing;
 
 #[fixture]
 fn mixed_repository_changes() -> RepositoryChanges {

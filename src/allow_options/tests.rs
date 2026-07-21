@@ -1,3 +1,5 @@
+use std::assert_matches;
+
 use super::*;
 use crate::{repository::FileChange, testing};
 
@@ -107,8 +109,8 @@ impl AllowOptionsBackend for StubBackend {
     reason = "Consuming the value keeps call sites concise in these assertion helpers"
 )]
 #[track_caller]
-fn assert_allowed(result: CheckResult) {
-    assert!(matches!(result, CheckResult::Allowed));
+fn assert_safe(safety: ModificationSafety) {
+    assert_matches!(safety, ModificationSafety::Safe);
 }
 
 #[expect(
@@ -116,23 +118,26 @@ fn assert_allowed(result: CheckResult) {
     reason = "Consuming the value keeps call sites concise in these assertion helpers"
 )]
 #[track_caller]
-fn assert_blocked_by_no_vcs(result: CheckResult) {
-    assert!(matches!(result, CheckResult::BlockedByNoVcs));
+fn assert_unsafe_due_to_no_vcs(safety: ModificationSafety) {
+    assert_matches!(
+        safety,
+        ModificationSafety::Unsafe(UnsafeModificationReason::NoVcs)
+    );
 }
 
 #[track_caller]
-fn assert_blocked_by_dirty(
-    result: CheckResult,
+fn assert_unsafe_due_to_dirty(
+    safety: ModificationSafety,
     expected_dirty_files: &[&str],
     expected_staged_files: &[&str],
 ) {
-    let CheckResult::BlockedByDirty {
+    let ModificationSafety::Unsafe(UnsafeModificationReason::Dirty {
         worktree,
         dirty_files,
         staged_files,
-    } = result
+    }) = safety
     else {
-        panic!("expected BlockedByDirty");
+        panic!("expected Unsafe(Dirty)");
     };
     assert_eq!(worktree, PathBuf::from(WORKTREE));
     assert_eq!(
@@ -152,13 +157,13 @@ fn assert_blocked_by_dirty(
 }
 
 #[track_caller]
-fn assert_blocked_by_staged(result: CheckResult, expected_staged_files: &[&str]) {
-    let CheckResult::BlockedByStaged {
+fn assert_unsafe_due_to_staged(safety: ModificationSafety, expected_staged_files: &[&str]) {
+    let ModificationSafety::Unsafe(UnsafeModificationReason::Staged {
         worktree,
         staged_files,
-    } = result
+    }) = safety
     else {
-        panic!("expected BlockedByStaged");
+        panic!("expected Unsafe(Staged)");
     };
     assert_eq!(worktree, PathBuf::from(WORKTREE));
     assert_eq!(
@@ -171,80 +176,80 @@ fn assert_blocked_by_staged(result: CheckResult, expected_staged_files: &[&str])
 }
 
 #[test]
-fn check_safe_to_modify_returns_allowed_when_allow_no_vcs_is_enabled() {
+fn check_safe_to_modify_returns_safe_when_allow_no_vcs_is_enabled() {
     let backend = StubBackend::default();
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .allow_no_vcs(true)
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_allowed(result);
+    assert_safe(safety);
 }
 
 #[test]
-fn check_safe_to_modify_returns_blocked_by_no_vcs_when_repository_is_not_found() {
+fn check_safe_to_modify_returns_unsafe_due_to_no_vcs_when_repository_is_not_found() {
     let backend = StubBackend::default();
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_blocked_by_no_vcs(result);
+    assert_unsafe_due_to_no_vcs(safety);
 }
 
 #[test]
-fn check_safe_to_modify_returns_allowed_for_clean_path() {
+fn check_safe_to_modify_returns_safe_for_clean_path() {
     let backend = StubBackend::default().with_repo(StubRepo::default());
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_allowed(result);
+    assert_safe(safety);
 }
 
 #[test]
-fn check_safe_to_modify_returns_blocked_by_staged_for_staged_only_path() {
+fn check_safe_to_modify_returns_unsafe_due_to_staged_for_staged_only_path() {
     let backend = StubBackend::default()
         .with_repo(StubRepo::default().with_path_changes([testing::staged_file("staged.txt")]));
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_blocked_by_staged(result, &["staged.txt"]);
+    assert_unsafe_due_to_staged(safety, &["staged.txt"]);
 }
 
 #[test]
-fn check_safe_to_modify_returns_allowed_for_staged_only_path_when_allow_staged_is_enabled() {
+fn check_safe_to_modify_returns_safe_for_staged_only_path_when_allow_staged_is_enabled() {
     let backend = StubBackend::default()
         .with_repo(StubRepo::default().with_path_changes([testing::staged_file("staged.txt")]));
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .allow_staged(true)
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_allowed(result);
+    assert_safe(safety);
 }
 
 #[test]
-fn check_safe_to_modify_returns_blocked_by_dirty_for_dirty_only_path() {
+fn check_safe_to_modify_returns_unsafe_due_to_dirty_for_dirty_only_path() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
         testing::modified_file("modified.txt"),
         testing::untracked_file("untracked.txt"),
     ]));
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_blocked_by_dirty(result, &["modified.txt", "untracked.txt"], &[]);
+    assert_unsafe_due_to_dirty(safety, &["modified.txt", "untracked.txt"], &[]);
 }
 
 #[test]
-fn check_safe_to_modify_returns_blocked_by_dirty_with_dirty_and_staged_files() {
+fn check_safe_to_modify_returns_unsafe_due_to_dirty_with_dirty_and_staged_files() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
         testing::modified_file("a-modified.txt"),
         testing::staged_file("b-staged.txt"),
@@ -252,12 +257,12 @@ fn check_safe_to_modify_returns_blocked_by_dirty_with_dirty_and_staged_files() {
         testing::untracked_file("d-untracked.txt"),
     ]));
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_blocked_by_dirty(
-        result,
+    assert_unsafe_due_to_dirty(
+        safety,
         &[
             "a-modified.txt",
             "c-modified-and-staged.txt",
@@ -268,21 +273,20 @@ fn check_safe_to_modify_returns_blocked_by_dirty_with_dirty_and_staged_files() {
 }
 
 #[test]
-fn check_safe_to_modify_returns_blocked_by_dirty_without_staged_files_when_allow_staged_is_enabled()
-{
+fn check_safe_to_modify_returns_unsafe_due_to_dirty_when_allow_staged_is_enabled() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
         testing::modified_file("a-modified.txt"),
         testing::staged_file("b-staged.txt"),
         testing::modified_and_staged_file("c-modified-and-staged.txt"),
     ]));
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .allow_staged(true)
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_blocked_by_dirty(
-        result,
+    assert_unsafe_due_to_dirty(
+        safety,
         &["a-modified.txt", "c-modified-and-staged.txt"],
         &[],
     );
@@ -294,11 +298,11 @@ fn check_safe_to_modify_checks_only_the_queried_path_by_default() {
         StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
     );
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("subdir", &backend)
         .unwrap();
 
-    assert_allowed(result);
+    assert_safe(safety);
 }
 
 #[test]
@@ -309,11 +313,11 @@ fn check_safe_to_modify_resolves_path_before_querying_path_changes() {
             .with_expected_path_changes_wt_path("resolved/subdir"),
     );
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("input/subdir", &backend)
         .unwrap();
 
-    assert_allowed(result);
+    assert_safe(safety);
 }
 
 #[test]
@@ -322,10 +326,10 @@ fn check_safe_to_modify_checks_the_entire_repository_when_enabled() {
         StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
     );
 
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .check_entire_repository(true)
         .check_safe_to_modify_with_backend("subdir", &backend)
         .unwrap();
 
-    assert_blocked_by_dirty(result, &["root-modified.txt"], &[]);
+    assert_unsafe_due_to_dirty(safety, &["root-modified.txt"], &[]);
 }

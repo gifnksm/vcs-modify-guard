@@ -32,10 +32,7 @@
 //!     allow_staged: bool,
 //! }
 //!
-//! fn ensure_safe_to_modify(
-//!     target: &Path,
-//!     options: &PolicyOptions,
-//! ) -> Result<(), Box<dyn Error>> {
+//! fn ensure_safe_to_modify(target: &Path, options: &PolicyOptions) -> Result<(), Box<dyn Error>> {
 //!     // Match `cargo fix` exactly:
 //!     // - `--allow-no-vcs` allows running even when no repository is found.
 //!     // - `--allow-dirty` allows worktree changes, staged changes, and
@@ -59,9 +56,7 @@
 //!     }
 //!
 //!     if changes.has_dirty_files() {
-//!         return Err(
-//!             "the repository containing the target path has uncommitted changes".into(),
-//!         );
+//!         return Err("the repository containing the target path has uncommitted changes".into());
 //!     }
 //!
 //!     if options.allow_staged {
@@ -119,10 +114,7 @@ mod tests;
 ///     allow_staged: bool,
 /// }
 ///
-/// fn ensure_safe_to_modify(
-///     target: &Path,
-///     options: &PolicyOptions,
-/// ) -> Result<(), Box<dyn Error>> {
+/// fn ensure_safe_to_modify(target: &Path, options: &PolicyOptions) -> Result<(), Box<dyn Error>> {
 ///     // Match `cargo fix` exactly:
 ///     // - `--allow-no-vcs` allows running even when no repository is found.
 ///     // - `--allow-dirty` allows worktree changes, staged changes, and
@@ -146,9 +138,7 @@ mod tests;
 ///     }
 ///
 ///     if changes.has_dirty_files() {
-///         return Err(
-///             "the repository containing the target path has uncommitted changes".into(),
-///         );
+///         return Err("the repository containing the target path has uncommitted changes".into());
 ///     }
 ///
 ///     if options.allow_staged {

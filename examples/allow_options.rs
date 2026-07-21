@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use vcs_modify_guard::{AllowOptions, CheckResult};
+use vcs_modify_guard::{AllowOptions, ModificationSafety, UnsafeModificationReason};
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -29,50 +29,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let target = args.target.as_deref().unwrap_or_else(|| Path::new("."));
-    let result = AllowOptions::new()
+    let safety = AllowOptions::new()
         .allow_no_vcs(args.allow_no_vcs)
         .allow_dirty(args.allow_dirty)
         .allow_staged(args.allow_staged)
         .check_safe_to_modify(target)?;
 
-    match result {
-        CheckResult::Allowed => {}
-        CheckResult::BlockedByNoVcs => {
-            eprintln!(
-                "The target path is not in a VCS repository. Use `--allow-no-vcs` to override this check."
-            );
-            return Err("blocked by no VCS".into());
-        }
-        CheckResult::BlockedByDirty {
-            worktree,
-            dirty_files,
-            staged_files,
-        } => {
-            eprintln!(
-                "The target path has uncommitted changes under it. Use `--allow-dirty` to override this check."
-            );
-            eprintln!("Worktree: {}", worktree.display());
-            for file in dirty_files {
-                eprintln!("* {} (dirty)", file.display());
+    match safety {
+        ModificationSafety::Safe => {}
+        ModificationSafety::Unsafe(reason) => match reason {
+            UnsafeModificationReason::NoVcs => {
+                eprintln!(
+                    "The target path is not in a VCS repository. Use `--allow-no-vcs` to override this check."
+                );
+                return Err("blocked by no VCS".into());
             }
-            for file in staged_files {
-                eprintln!("* {} (staged)", file.display());
+            UnsafeModificationReason::Dirty {
+                worktree,
+                dirty_files,
+                staged_files,
+            } => {
+                eprintln!(
+                    "The target path has uncommitted changes under it. Use `--allow-dirty` to override this check."
+                );
+                eprintln!("Worktree: {}", worktree.display());
+                for file in dirty_files {
+                    eprintln!("* {} (dirty)", file.display());
+                }
+                for file in staged_files {
+                    eprintln!("* {} (staged)", file.display());
+                }
+                return Err("blocked by dirty files".into());
             }
-            return Err("blocked by dirty files".into());
-        }
-        CheckResult::BlockedByStaged {
-            worktree,
-            staged_files,
-        } => {
-            eprintln!(
-                "The target path has staged changes under it. Use `--allow-staged` to override this check."
-            );
-            eprintln!("Worktree: {}", worktree.display());
-            for file in staged_files {
-                eprintln!("* {} (staged)", file.display());
+            UnsafeModificationReason::Staged {
+                worktree,
+                staged_files,
+            } => {
+                eprintln!(
+                    "The target path has staged changes under it. Use `--allow-staged` to override this check."
+                );
+                eprintln!("Worktree: {}", worktree.display());
+                for file in staged_files {
+                    eprintln!("* {} (staged)", file.display());
+                }
+                return Err("blocked by staged changes".into());
             }
-            return Err("blocked by staged changes".into());
-        }
+        },
     }
 
     eprintln!("Proceeding...");

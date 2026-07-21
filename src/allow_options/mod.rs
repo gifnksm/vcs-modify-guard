@@ -43,14 +43,14 @@ mod tests;
 ///     }
 ///     CheckResult::BlockedByDirty { dirty_files, .. } => {
 ///         eprintln!("Dirty files:");
-///         for path in dirty_files {
-///             eprintln!("* {}", path.display());
+///         for wt_path in dirty_files {
+///             eprintln!("* {}", wt_path.display());
 ///         }
 ///     }
 ///     CheckResult::BlockedByStaged { staged_files, .. } => {
 ///         eprintln!("Staged files:");
-///         for path in staged_files {
-///             eprintln!("* {}", path.display());
+///         for wt_path in staged_files {
+///             eprintln!("* {}", wt_path.display());
 ///         }
 ///     }
 /// }
@@ -141,8 +141,8 @@ impl AllowOptions {
         if self.check_entire_repository {
             repo.repository_changes()
         } else {
-            let path = repo.resolve_path(path)?;
-            repo.path_changes(&path)
+            let wt_path = repo.resolve_path(path)?;
+            repo.path_changes(&wt_path)
         }
     }
 
@@ -207,7 +207,7 @@ impl AllowOptions {
         let dirty_files = changes
             .files()
             .filter(|f| f.is_dirty())
-            .map(|f| f.path().to_owned())
+            .map(|f| f.wt_path().to_owned())
             .collect::<Vec<_>>();
 
         if self.allow_staged {
@@ -224,7 +224,7 @@ impl AllowOptions {
         let staged_files = changes
             .files()
             .filter(|f| f.is_staged())
-            .map(|f| f.path().to_owned())
+            .map(|f| f.wt_path().to_owned())
             .collect::<Vec<_>>();
 
         if dirty_files.is_empty() {
@@ -251,7 +251,7 @@ trait AllowOptionsBackend {
 trait AllowOptionsRepository {
     fn worktree(&self) -> &Path;
     fn resolve_path(&self, path: &Path) -> Result<PathBuf, ModifyGuardError>;
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
+    fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
 }
 
@@ -272,8 +272,8 @@ impl AllowOptionsRepository for Repository {
     fn resolve_path(&self, path: &Path) -> Result<PathBuf, ModifyGuardError> {
         Repository::resolve_path(self, path)
     }
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        Repository::path_changes(self, path)
+    fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
+        Repository::path_changes(self, wt_path)
     }
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         Repository::repository_changes(self)

@@ -4,52 +4,52 @@ use rstest::*;
 
 use super::*;
 
-fn modified_file<P>(path: P) -> FileChange
+fn modified_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
-    let path = path.into();
+    let wt_path = wt_path.into();
     FileChange {
-        path,
+        wt_path,
         modified: true,
         staged: false,
         untracked: false,
     }
 }
 
-fn staged_file<P>(path: P) -> FileChange
+fn staged_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
-    let path = path.into();
+    let wt_path = wt_path.into();
     FileChange {
-        path,
+        wt_path,
         modified: false,
         staged: true,
         untracked: false,
     }
 }
 
-fn modified_and_staged_file<P>(path: P) -> FileChange
+fn modified_and_staged_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
-    let path = path.into();
+    let wt_path = wt_path.into();
     FileChange {
-        path,
+        wt_path,
         modified: true,
         staged: true,
         untracked: false,
     }
 }
 
-fn untracked_file<P>(path: P) -> FileChange
+fn untracked_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
-    let path = path.into();
+    let wt_path = wt_path.into();
     FileChange {
-        path,
+        wt_path,
         modified: false,
         staged: false,
         untracked: true,
@@ -82,7 +82,7 @@ where
     I: Iterator<Item = &'a FileChange>,
 {
     let files = files.collect::<Vec<_>>();
-    assert!(files.is_sorted_by(|a, b| a.path() < b.path()));
+    assert!(files.is_sorted_by(|a, b| a.wt_path() < b.wt_path()));
 }
 
 #[rstest]
@@ -130,9 +130,9 @@ where
     J: DoubleEndedIterator<Item = &'a FileChange> + ExactSizeIterator + Clone,
 {
     let files = files.into_iter();
-    assert_double_ended_iterator_properties(files.clone().map(FileChange::path));
-    assert_exact_size_iterator_properties(files.clone().map(FileChange::path));
-    assert_exact_size_iterator_properties(files.clone().rev().map(FileChange::path));
+    assert_double_ended_iterator_properties(files.clone().map(FileChange::wt_path));
+    assert_exact_size_iterator_properties(files.clone().map(FileChange::wt_path));
+    assert_exact_size_iterator_properties(files.clone().rev().map(FileChange::wt_path));
 }
 
 #[rstest]

@@ -49,8 +49,8 @@ pub(crate) fn open(path: &Path) -> Result<Box<dyn VcsRepository>, ModifyGuardErr
 pub(crate) trait VcsRepository: Debug {
     fn worktree(&self) -> &Path;
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
-    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, ModifyGuardError>;
+    fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError>;
+    fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError>;
 
     fn resolve_path(&self, path: &Path) -> Result<PathBuf, ModifyGuardError> {
         let worktree_path = util::canonicalize_path(self.worktree())?;

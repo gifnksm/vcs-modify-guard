@@ -26,25 +26,30 @@ pub(crate) struct AssertRepositoryChanges {
 
 impl From<RepositoryChanges> for AssertRepositoryChanges {
     fn from(changes: RepositoryChanges) -> Self {
-        fn collect_path<'a, I>(iter: I) -> BTreeSet<PathBuf>
+        fn collect_wt_paths<'a, I>(iter: I) -> BTreeSet<PathBuf>
         where
             I: IntoIterator<Item = &'a FileChange>,
         {
-            iter.into_iter().map(|file| file.path.clone()).collect()
+            iter.into_iter().map(|file| file.wt_path.clone()).collect()
         }
 
         let files = changes
             .files()
-            .map(|file| (file.path().to_owned(), AssertFileChange::from(file.clone())))
+            .map(|file| {
+                (
+                    file.wt_path().to_owned(),
+                    AssertFileChange::from(file.clone()),
+                )
+            })
             .collect();
 
-        let paths = collect_path(changes.files());
-        let modified = collect_path(changes.modified_files());
-        assert!(modified.is_subset(&paths));
-        let staged = collect_path(changes.staged_files());
-        assert!(staged.is_subset(&paths));
-        let untracked = collect_path(changes.untracked_files());
-        assert!(untracked.is_subset(&paths));
+        let wt_paths = collect_wt_paths(changes.files());
+        let modified = collect_wt_paths(changes.modified_files());
+        assert!(modified.is_subset(&wt_paths));
+        let staged = collect_wt_paths(changes.staged_files());
+        assert!(staged.is_subset(&wt_paths));
+        let untracked = collect_wt_paths(changes.untracked_files());
+        assert!(untracked.is_subset(&wt_paths));
 
         Self {
             files,
@@ -56,53 +61,53 @@ impl From<RepositoryChanges> for AssertRepositoryChanges {
 }
 
 impl AssertRepositoryChanges {
-    pub(crate) fn modified<I, P>(mut self, paths: I) -> Self
+    pub(crate) fn modified<I, P>(mut self, wt_paths: I) -> Self
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
     {
-        for path in paths {
-            let path = path.into();
+        for wt_path in wt_paths {
+            let wt_path = wt_path.into();
             let file = self
                 .files
-                .entry(path.clone())
-                .or_insert_with(|| AssertFileChange::new(path.clone()));
+                .entry(wt_path.clone())
+                .or_insert_with(|| AssertFileChange::new(wt_path.clone()));
             file.modified = true;
-            self.modified.insert(path);
+            self.modified.insert(wt_path);
         }
         self
     }
 
-    pub(crate) fn staged<I, P>(mut self, paths: I) -> Self
+    pub(crate) fn staged<I, P>(mut self, wt_paths: I) -> Self
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
     {
-        for path in paths {
-            let path = path.into();
+        for wt_path in wt_paths {
+            let wt_path = wt_path.into();
             let file = self
                 .files
-                .entry(path.clone())
-                .or_insert_with(|| AssertFileChange::new(path.clone()));
+                .entry(wt_path.clone())
+                .or_insert_with(|| AssertFileChange::new(wt_path.clone()));
             file.staged = true;
-            self.staged.insert(path);
+            self.staged.insert(wt_path);
         }
         self
     }
 
-    pub(crate) fn untracked<I, P>(mut self, paths: I) -> Self
+    pub(crate) fn untracked<I, P>(mut self, wt_paths: I) -> Self
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
     {
-        for path in paths {
-            let path = path.into();
+        for wt_path in wt_paths {
+            let wt_path = wt_path.into();
             let file = self
                 .files
-                .entry(path.clone())
-                .or_insert_with(|| AssertFileChange::new(path.clone()));
+                .entry(wt_path.clone())
+                .or_insert_with(|| AssertFileChange::new(wt_path.clone()));
             file.untracked = true;
-            self.untracked.insert(path);
+            self.untracked.insert(wt_path);
         }
         self
     }
@@ -117,7 +122,7 @@ impl AssertRepositoryChanges {
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct AssertFileChange {
-    path: PathBuf,
+    wt_path: PathBuf,
     modified: bool,
     staged: bool,
     untracked: bool,
@@ -126,13 +131,13 @@ pub(crate) struct AssertFileChange {
 impl From<FileChange> for AssertFileChange {
     fn from(change: FileChange) -> Self {
         let FileChange {
-            path,
+            wt_path,
             modified,
             staged,
             untracked,
         } = change;
         Self {
-            path,
+            wt_path,
             modified,
             staged,
             untracked,
@@ -141,12 +146,12 @@ impl From<FileChange> for AssertFileChange {
 }
 
 impl AssertFileChange {
-    pub(crate) fn new<P>(path: P) -> Self
+    pub(crate) fn new<P>(wt_path: P) -> Self
     where
         P: Into<PathBuf>,
     {
         Self {
-            path: path.into(),
+            wt_path: wt_path.into(),
             modified: false,
             staged: false,
             untracked: false,

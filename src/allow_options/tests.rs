@@ -3,36 +3,36 @@ use crate::repository::FileChange;
 
 const WORKTREE: &str = "repo";
 
-fn modified_file(path: &str) -> FileChange {
+fn modified_file(wt_path: &str) -> FileChange {
     FileChange {
-        path: path.into(),
+        wt_path: wt_path.into(),
         modified: true,
         staged: false,
         untracked: false,
     }
 }
 
-fn staged_file(path: &str) -> FileChange {
+fn staged_file(wt_path: &str) -> FileChange {
     FileChange {
-        path: path.into(),
+        wt_path: wt_path.into(),
         modified: false,
         staged: true,
         untracked: false,
     }
 }
 
-fn modified_and_staged_file(path: &str) -> FileChange {
+fn modified_and_staged_file(wt_path: &str) -> FileChange {
     FileChange {
-        path: path.into(),
+        wt_path: wt_path.into(),
         modified: true,
         staged: true,
         untracked: false,
     }
 }
 
-fn untracked_file(path: &str) -> FileChange {
+fn untracked_file(wt_path: &str) -> FileChange {
     FileChange {
-        path: path.into(),
+        wt_path: wt_path.into(),
         modified: false,
         staged: false,
         untracked: true,
@@ -43,7 +43,7 @@ fn untracked_file(path: &str) -> FileChange {
 struct StubRepo {
     worktree: PathBuf,
     resolve_path_result: Option<PathBuf>,
-    expected_path_changes_path: Option<PathBuf>,
+    expected_path_changes_wt_path: Option<PathBuf>,
     path_changes_result: Option<RepositoryChanges>,
     repository_changes_result: Option<RepositoryChanges>,
 }
@@ -53,7 +53,7 @@ impl Default for StubRepo {
         Self {
             worktree: PathBuf::from(WORKTREE),
             resolve_path_result: None,
-            expected_path_changes_path: None,
+            expected_path_changes_wt_path: None,
             path_changes_result: None,
             repository_changes_result: None,
         }
@@ -61,19 +61,19 @@ impl Default for StubRepo {
 }
 
 impl StubRepo {
-    fn with_resolve_path_result<P>(mut self, path: P) -> Self
+    fn with_resolve_path_result<P>(mut self, wt_path: P) -> Self
     where
         P: Into<PathBuf>,
     {
-        self.resolve_path_result = Some(path.into());
+        self.resolve_path_result = Some(wt_path.into());
         self
     }
 
-    fn with_expected_path_changes_path<P>(mut self, path: P) -> Self
+    fn with_expected_path_changes_wt_path<P>(mut self, wt_path: P) -> Self
     where
         P: Into<PathBuf>,
     {
-        self.expected_path_changes_path = Some(path.into());
+        self.expected_path_changes_wt_path = Some(wt_path.into());
         self
     }
 
@@ -106,9 +106,9 @@ impl AllowOptionsRepository for StubRepo {
             .unwrap_or_else(|| path.to_path_buf()))
     }
 
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        if let Some(expected) = &self.expected_path_changes_path {
-            assert_eq!(path, expected);
+    fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
+        if let Some(expected) = &self.expected_path_changes_wt_path {
+            assert_eq!(wt_path, expected);
         }
         Ok(self.path_changes_result.clone())
     }
@@ -342,7 +342,7 @@ fn check_safe_to_modify_resolves_path_before_querying_path_changes() {
     let backend = StubBackend::default().with_repo(
         StubRepo::default()
             .with_resolve_path_result("resolved/subdir")
-            .with_expected_path_changes_path("resolved/subdir"),
+            .with_expected_path_changes_wt_path("resolved/subdir"),
     );
 
     let result = AllowOptions::new()

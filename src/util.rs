@@ -136,22 +136,26 @@ impl NormalizedPath {
     }
 }
 
-pub(crate) fn normalize_to_worktree_path<P, Q>(
+pub(crate) fn normalize_worktree_path<P, Q>(
     worktree_path: P,
-    path: Q,
+    wt_path: Q,
 ) -> Result<NormalizedPath, ModifyGuardError>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
 {
     let worktree_path = worktree_path.as_ref();
-    let path = path.as_ref();
+    let wt_path = wt_path.as_ref();
+    ensure!(
+        wt_path.is_relative(),
+        error::InvalidWorktreeRelativePathSnafu { path: wt_path }
+    );
     let worktree_path = canonicalize_path(worktree_path)?;
-    let entry_path = NormalizedPath::new(worktree_path.join(path))?;
+    let entry_path = NormalizedPath::new(worktree_path.join(wt_path))?;
     let normalized = entry_path
         .strip_prefix(&worktree_path)
         .ok()
-        .context(error::InvalidWorktreeRelativePathSnafu { path })?;
+        .context(error::InvalidWorktreeRelativePathSnafu { path: wt_path })?;
     Ok(normalized)
 }
 
@@ -200,76 +204,76 @@ mod tests {
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_canonicalizes_existing_path(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_canonicalizes_existing_path(file_tree: PathInTempDir) {
         let path = file_tree;
-        let subpaths = [
+        let wt_paths = [
             "a/b/c/d.txt",
             "a/../a/b/../b/c/d.txt",
             "a//b//c//d.txt",
             "a/./b//c/d.txt",
         ];
-        for subpath in subpaths {
-            let normalized = normalize_to_worktree_path(&path, path.child(subpath)).unwrap();
+        for wt_path in wt_paths {
+            let normalized = normalize_worktree_path(&path, wt_path).unwrap();
             assert_existing(normalized, "a/b/c/d.txt");
         }
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_partially_canonicalizes_path_with_missing_leaf(
+    fn normalize_worktree_path_partially_canonicalizes_path_with_missing_leaf(
         file_tree: PathInTempDir,
     ) {
         let path = file_tree;
-        let subpaths = [
+        let wt_paths = [
             "a/b/c/X.txt",
             "a/../a/b/../b/c/X.txt",
             "a//b//c//X.txt",
             "a/./b//c/X.txt",
         ];
-        for subpath in subpaths {
-            let normalized = normalize_to_worktree_path(&path, path.child(subpath)).unwrap();
+        for wt_path in wt_paths {
+            let normalized = normalize_worktree_path(&path, wt_path).unwrap();
             assert_missing(normalized, "a/b/c/X.txt");
         }
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_partially_canonicalizes_path_with_missing_leaves(
+    fn normalize_worktree_path_partially_canonicalizes_path_with_missing_leaves(
         file_tree: PathInTempDir,
     ) {
         let path = file_tree;
-        let normalized = normalize_to_worktree_path(&path, path.child("a/b/c/X/Y/Z.txt")).unwrap();
+        let normalized = normalize_worktree_path(&path, "a/b/c/X/Y/Z.txt").unwrap();
         assert_missing(normalized, "a/b/c/X/Y/Z.txt");
     }
 
     #[cfg(unix)]
     #[rstest]
-    fn normalize_to_worktree_path_resolves_symlinks_in_existing_prefix(
+    fn normalize_worktree_path_resolves_symlinks_in_existing_prefix(
         file_tree_with_symlink: PathInTempDir,
     ) {
         let path = file_tree_with_symlink;
-        let normalized = normalize_to_worktree_path(&path, path.child("a/b/L/X.txt")).unwrap();
+        let normalized = normalize_worktree_path(&path, "a/b/L/X.txt").unwrap();
         assert_missing(normalized, "a/b/c/X.txt");
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_rejects_path_outside_worktree(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_rejects_path_outside_worktree(file_tree: PathInTempDir) {
         let path = file_tree;
-        let err = normalize_to_worktree_path(&path, path.child("a/../../X.txt")).unwrap_err();
+        let err = normalize_worktree_path(&path, "a/../../X.txt").unwrap_err();
         assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
-    // `normalize_to_worktree_path` trims missing trailing components only after
+    // `normalize_worktree_path` trims missing trailing components only after
     // `dunce::canonicalize` fails. On Unix-like platforms, canonicalization of
     // `a/X/../../X.txt` still fails while trying to traverse the missing `X`
     // component, so trimming eventually reaches `..` and rejects the path.
     #[cfg(not(windows))]
     #[rstest]
-    fn normalize_to_worktree_path_rejects_dotdot_left_in_missing_suffix(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_rejects_dotdot_left_in_missing_suffix(file_tree: PathInTempDir) {
         let path = file_tree;
-        let err = normalize_to_worktree_path(&path, path.child("a/X/../../X.txt")).unwrap_err();
+        let err = normalize_worktree_path(&path, "a/X/../../X.txt").unwrap_err();
         assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
-    // `normalize_to_worktree_path` trims missing trailing components only after
+    // `normalize_worktree_path` trims missing trailing components only after
     // `dunce::canonicalize` fails. On Windows, canonicalization of
     // `a/X/../../X.txt` succeeds earlier because the Windows path machinery
     // lexically resolves the `..` components before existence checks, so
@@ -277,9 +281,9 @@ mod tests {
     // `X.txt`.
     #[cfg(windows)]
     #[rstest]
-    fn normalize_to_worktree_path_resolves_dotdot_before_missing_suffix(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_resolves_dotdot_before_missing_suffix(file_tree: PathInTempDir) {
         let path = file_tree;
-        let normalized = normalize_to_worktree_path(&path, path.child("a/X/../../X.txt")).unwrap();
+        let normalized = normalize_worktree_path(&path, "a/X/../../X.txt").unwrap();
         assert_missing(normalized, "X.txt");
     }
 
@@ -287,27 +291,34 @@ mod tests {
     // before the trailing `..` components are eliminated, so trimming reaches
     // `..` and the path is rejected on all platforms.
     #[rstest]
-    fn normalize_to_worktree_path_rejects_unresolved_dotdot_in_missing_suffix(
+    fn normalize_worktree_path_rejects_unresolved_dotdot_in_missing_suffix(
         file_tree: PathInTempDir,
     ) {
         let path = file_tree;
-        let err = normalize_to_worktree_path(&path, path.child("a/X/X/X/X/../../")).unwrap_err();
+        let err = normalize_worktree_path(&path, "a/X/X/X/X/../../").unwrap_err();
         assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_resolves_empty_path(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_resolves_empty_path(file_tree: PathInTempDir) {
         let path = file_tree;
-        let normalized = normalize_to_worktree_path(&path, path.child("")).unwrap();
+        let normalized = normalize_worktree_path(&path, "").unwrap();
         assert_existing(normalized, "");
     }
 
     #[rstest]
-    fn normalize_to_worktree_path_resolves_current_dir_as_empty_path(file_tree: PathInTempDir) {
+    fn normalize_worktree_path_resolves_current_dir_as_empty_path(file_tree: PathInTempDir) {
         let path = file_tree;
-        let normalized = normalize_to_worktree_path(&path, path.child(".")).unwrap();
+        let normalized = normalize_worktree_path(&path, ".").unwrap();
         assert_existing(normalized, "");
-        let normalized = normalize_to_worktree_path(&path, path.child("./")).unwrap();
+        let normalized = normalize_worktree_path(&path, "./").unwrap();
         assert_existing(normalized, "");
+    }
+
+    #[rstest]
+    fn normalize_worktree_path_rejects_absolute_path(file_tree: PathInTempDir) {
+        let path = file_tree;
+        let err = normalize_worktree_path(&path, path.child("/a/b/c/d.txt")).unwrap_err();
+        assert_matches!(err, ModifyGuardError::InvalidWorktreeRelativePath { .. });
     }
 }

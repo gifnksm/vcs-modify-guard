@@ -104,6 +104,7 @@ rc_buffer = "warn"
 rc_mutex = "warn"
 redundant_test_prefix = "warn"
 redundant_type_annotations = "warn"
+renamed_function_params = "warn"
 rest_pat_in_fully_bound_structs = "warn"
 # this lint is currently nightly-only and will reach stable Clippy in 1.99; keep it disabled until then
 # rest_pattern_accessible_field = "warn"

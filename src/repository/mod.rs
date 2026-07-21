@@ -8,7 +8,7 @@
 //! directly in order to implement custom policy logic.
 //!
 //! Paths returned by change queries are relative to the repository worktree.
-//! Query methods that take a `path` argument interpret it relative to that
+//! Query methods that take a `wt_path` argument interpret it relative to that
 //! worktree. If you start with an absolute path or a path relative to the
 //! current working directory, use [`Repository::resolve_path`] first.
 //!
@@ -269,11 +269,11 @@ impl Repository {
         self.inner.repository_changes()
     }
 
-    /// Returns the aggregate file changes for the worktree-relative `path`
+    /// Returns the aggregate file changes for the worktree-relative `wt_path`
     /// within the repository.
     ///
-    /// If `path` resolves to a file path, the returned change set contains at
-    /// most that file. If `path` resolves to a directory path, the returned
+    /// If `wt_path` resolves to a file path, the returned change set contains at
+    /// most that file. If `wt_path` resolves to a directory path, the returned
     /// change set contains changes for files under that directory. The
     /// repository worktree root is also accepted.
     ///
@@ -285,7 +285,7 @@ impl Repository {
     ///
     /// Paths in the returned changes are relative to [`Self::worktree`].
     ///
-    /// `path` is interpreted relative to [`Self::worktree`]. If you have an
+    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an
     /// absolute path or a path relative to the current working directory, use
     /// [`Self::resolve_path`] first. Symlinks are followed.
     ///
@@ -297,21 +297,21 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not resolve to a path within [`Self::worktree`]
-    /// - `path` does not exist in the worktree and does not refer to a path
+    /// - `wt_path` does not resolve to a path within [`Self::worktree`]
+    /// - `wt_path` does not exist in the worktree and does not refer to a path
     ///   known to the VCS
-    /// - `path` could not be resolved to a canonical path for any other reason
-    /// - the backend fails to query changes for `path` for any other reason
+    /// - `wt_path` could not be resolved to a canonical path for any other reason
+    /// - the backend fails to query changes for `wt_path` for any other reason
     #[inline]
-    pub fn path_changes<P>(&self, path: P) -> Result<Option<RepositoryChanges>, ModifyGuardError>
+    pub fn path_changes<P>(&self, wt_path: P) -> Result<Option<RepositoryChanges>, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
-        self.inner.path_changes(path.as_ref())
+        self.inner.path_changes(wt_path.as_ref())
     }
 
     /// Returns the modified, staged, or untracked change for the
-    /// worktree-relative file path `path` within the repository, if any.
+    /// worktree-relative file path `wt_path` within the repository, if any.
     ///
     /// Returns `Ok(None)` if the resolved file path is clean or ignored by the
     /// VCS.
@@ -319,14 +319,14 @@ impl Repository {
     /// If this method returns `Ok(Some(change))`, the returned [`FileChange`]
     /// describes the resolved file path.
     ///
-    /// `path` is interpreted relative to [`Self::worktree`]. If you have an
+    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an
     /// absolute path or a path relative to the current working directory, use
     /// [`Self::resolve_path`] first. Symlinks are followed.
     ///
     /// If the resolved path exists in the worktree, it must be a file.
     /// If it does not exist in the worktree, this method may still return a
     /// change when the path refers to a tracked file path known to the VCS,
-    /// such as a deletion change. [`FileChange::path`] may differ from the
+    /// such as a deletion change. [`FileChange::wt_path`] may differ from the
     /// path passed to this method when the input reaches the same file path
     /// through symlinks or other equivalent non-canonical forms.
     ///
@@ -340,19 +340,19 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not resolve to a path within [`Self::worktree`]
+    /// - `wt_path` does not resolve to a path within [`Self::worktree`]
     /// - the resolved path exists in the worktree but does not resolve to a
     ///   file
-    /// - `path` does not exist in the worktree and does not refer to a tracked
+    /// - `wt_path` does not exist in the worktree and does not refer to a tracked
     ///   path known to the VCS
-    /// - `path` could not be resolved to a canonical path for any other reason
+    /// - `wt_path` could not be resolved to a canonical path for any other reason
     /// - the backend fails to query file changes for any other reason
     #[inline]
-    pub fn file_change<P>(&self, path: P) -> Result<Option<FileChange>, ModifyGuardError>
+    pub fn file_change<P>(&self, wt_path: P) -> Result<Option<FileChange>, ModifyGuardError>
     where
         P: AsRef<Path>,
     {
-        self.inner.file_change(path.as_ref())
+        self.inner.file_change(wt_path.as_ref())
     }
 }
 
@@ -386,10 +386,12 @@ impl RepositoryChanges {
         I: IntoIterator<Item = FileChange>,
     {
         let mut files = files.into_iter().collect::<Vec<_>>();
-        files.sort_by(|a, b| a.path().cmp(b.path()));
+        files.sort_by(|a, b| a.wt_path().cmp(b.wt_path()));
         assert!(
-            files.array_windows().all(|[a, b]| a.path() != b.path()),
-            "repository change entries must be unique by path",
+            files
+                .array_windows()
+                .all(|[a, b]| a.wt_path() != b.wt_path()),
+            "repository change entries must be unique by worktree-relative path",
         );
 
         if files.is_empty() {
@@ -516,7 +518,7 @@ impl RepositoryChanges {
 /// a file may have staged changes and additional unstaged modifications.
 #[derive(Debug, Clone)]
 pub struct FileChange {
-    pub(crate) path: PathBuf,
+    pub(crate) wt_path: PathBuf,
     pub(crate) modified: bool,
     pub(crate) staged: bool,
     pub(crate) untracked: bool,
@@ -535,8 +537,8 @@ impl FileChange {
     /// non-canonical forms.
     #[inline]
     #[must_use]
-    pub fn path(&self) -> &Path {
-        &self.path
+    pub fn wt_path(&self) -> &Path {
+        &self.wt_path
     }
 
     /// Returns whether the file has unstaged changes.

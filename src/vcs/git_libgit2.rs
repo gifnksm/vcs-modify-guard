@@ -47,10 +47,10 @@ pub enum Libgit2BackendError {
         source: git2::Error,
     },
     /// Querying file change failed.
-    #[snafu(display("failed to query git file change for path: {}", path.display()))]
+    #[snafu(display("failed to query git file change for worktree-relative path: {}", wt_path.display()))]
     QueryFileChange {
-        /// The path of the file whose change was being retrieved.
-        path: PathBuf,
+        /// The worktree-relative path of the file whose change was being retrieved.
+        wt_path: PathBuf,
         /// The underlying error from `libgit2`.
         source: git2::Error,
     },
@@ -122,47 +122,47 @@ impl VcsRepository for Libgit2Repository {
         self.directory_path_changes(None)
     }
 
-    fn path_changes(&self, path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        let path = util::normalize_to_worktree_path(&self.worktree, path)?;
-        let is_dir = match &path {
-            NormalizedPath::Existing(path) => {
-                let fs_path = self.worktree.join(path);
+    fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
+        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let is_dir = match &wt_path {
+            NormalizedPath::Existing(wt_path) => {
+                let fs_path = self.worktree.join(wt_path);
                 let metadata = util::read_path_metadata(&fs_path)?;
                 metadata.is_dir()
             }
             NormalizedPath::Missing(_) => true,
         };
-        if path.as_path().as_os_str().is_empty() {
+        if wt_path.as_path().as_os_str().is_empty() {
             return self.directory_path_changes(None);
         }
         if is_dir {
-            return self.directory_path_changes(Some(&path));
+            return self.directory_path_changes(Some(&wt_path));
         }
-        let change = self.file_path_change(path)?;
+        let change = self.file_path_change(wt_path)?;
         Ok(change.and_then(|change| RepositoryChanges::new([change])))
     }
 
-    fn file_change(&self, path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
-        let path = util::normalize_to_worktree_path(&self.worktree, path)?;
-        match &path {
-            NormalizedPath::Existing(path) => {
-                let fs_path = self.worktree.join(path);
+    fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
+        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        match &wt_path {
+            NormalizedPath::Existing(wt_path) => {
+                let fs_path = self.worktree.join(wt_path);
                 util::ensure_path_is_file(&fs_path)?;
             }
             NormalizedPath::Missing(_) => {}
         }
-        self.file_path_change(path)
+        self.file_path_change(wt_path)
     }
 }
 
 impl Libgit2Repository {
     fn directory_path_changes(
         &self,
-        path: Option<&NormalizedPath>,
+        wt_path: Option<&NormalizedPath>,
     ) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         let mut repo_opts = git2::StatusOptions::new();
-        if let Some(path) = path {
-            repo_opts.pathspec(path.as_path());
+        if let Some(wt_path) = wt_path {
+            repo_opts.pathspec(wt_path.as_path());
             repo_opts.disable_pathspec_match(true);
         }
         repo_opts.include_untracked(true);
@@ -177,15 +177,15 @@ impl Libgit2Repository {
             .iter()
             .filter_map(|entry| {
                 // Match `cargo fix`: ignore status entries whose paths cannot be represented as UTF-8.
-                let path = entry.path().ok()?;
-                StatusFlags::from(entry.status()).build(path)
+                let wt_path = entry.path().ok()?;
+                StatusFlags::from(entry.status()).build(wt_path)
             })
             .peekable();
 
         if file_entries.peek().is_none()
-            && let Some(NormalizedPath::Missing(path)) = &path
+            && let Some(NormalizedPath::Missing(wt_path)) = &wt_path
         {
-            return Err(error::PathNotFoundSnafu { path }.build());
+            return Err(error::PathNotFoundSnafu { path: wt_path }.build());
         }
 
         Ok(RepositoryChanges::new(file_entries))
@@ -193,28 +193,28 @@ impl Libgit2Repository {
 
     fn file_path_change(
         &self,
-        path: NormalizedPath,
+        wt_path: NormalizedPath,
     ) -> Result<Option<FileChange>, ModifyGuardError> {
-        let status = match self.repo.status_file(path.as_path()) {
+        let status = match self.repo.status_file(wt_path.as_path()) {
             Ok(status) => status,
             Err(source) if source.code() == git2::ErrorCode::NotFound => {
-                match &path {
-                    NormalizedPath::Existing(path) => {
-                        // At this point the path has already been resolved to an
+                match &wt_path {
+                    NormalizedPath::Existing(wt_path) => {
+                        // At this point `wt_path` has already been resolved to an
                         // existing file within the worktree, so `NotFound` means the
                         // file is untracked by Git rather than missing from disk.
-                        return Ok(StatusFlags::untracked().build(path));
+                        return Ok(StatusFlags::untracked().build(wt_path));
                     }
-                    NormalizedPath::Missing(path) => {
-                        return Err(error::PathNotFoundSnafu { path }.build());
+                    NormalizedPath::Missing(wt_path) => {
+                        return Err(error::PathNotFoundSnafu { path: wt_path }.build());
                     }
                 }
             }
             Err(source) => {
-                return Err(QueryFileChangeSnafu { path }.into_error(source).into());
+                return Err(QueryFileChangeSnafu { wt_path }.into_error(source).into());
             }
         };
-        Ok(StatusFlags::from(status).build(path))
+        Ok(StatusFlags::from(status).build(wt_path))
     }
 }
 
@@ -260,7 +260,7 @@ impl StatusFlags {
         }
     }
 
-    fn build<P>(self, path: P) -> Option<FileChange>
+    fn build<P>(self, wt_path: P) -> Option<FileChange>
     where
         P: Into<PathBuf>,
     {
@@ -273,9 +273,9 @@ impl StatusFlags {
             return None;
         }
 
-        let path = path.into();
+        let wt_path = wt_path.into();
         Some(FileChange {
-            path,
+            wt_path,
             modified,
             staged,
             untracked,

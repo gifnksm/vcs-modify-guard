@@ -1003,38 +1003,38 @@ fn file_change_returns_canonicalized_path(
     let dir_name = repo_path.file_name().unwrap().to_str().unwrap();
     let repo = backend.open(repo_path).unwrap().unwrap();
 
-    let path = PathBuf::from(format!("subdir//{MODIFIED_FILE}"));
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = PathBuf::from(format!("subdir//{MODIFIED_FILE}"));
+    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
 
-    let path = PathBuf::from(format!("./{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = PathBuf::from(format!("./{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
 
-    let path = PathBuf::from(format!("subdir/./{MODIFIED_FILE}"));
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = PathBuf::from(format!("subdir/./{MODIFIED_FILE}"));
+    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
 
-    let path = PathBuf::from(format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = PathBuf::from(format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
 
-    let path = PathBuf::from(format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = PathBuf::from(format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
+    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
 
-    let path = repo_path.join(SUBDIR_MODIFIED_FILE);
-    let change = repo.file_change(&path).unwrap().unwrap();
+    let wt_path = Path::new(SUBDIR_MODIFIED_FILE);
+    let change = repo.file_change(wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .modified()
         .assert(change);
@@ -1121,7 +1121,7 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
     let repo = backend.open(path).unwrap().unwrap();
     let repo_changes = repo.repository_changes().unwrap().unwrap();
 
-    let paths = [
+    let wt_paths = [
         CLEAN_FILE,
         MODIFIED_FILE,
         STAGED_FILE,
@@ -1136,41 +1136,41 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
     let mut staged_count = 0;
     let mut untracked_count = 0;
 
-    let repo_modified_paths = repo_changes
+    let repo_modified_wt_paths = repo_changes
         .modified_files()
-        .map(FileChange::path)
+        .map(FileChange::wt_path)
         .collect::<Vec<_>>();
-    let repo_staged_paths = repo_changes
+    let repo_staged_wt_paths = repo_changes
         .staged_files()
-        .map(FileChange::path)
+        .map(FileChange::wt_path)
         .collect::<Vec<_>>();
-    let repo_untracked_paths = repo_changes
+    let repo_untracked_wt_paths = repo_changes
         .untracked_files()
-        .map(FileChange::path)
+        .map(FileChange::wt_path)
         .collect::<Vec<_>>();
 
-    for path in &paths {
-        let path = Path::new(path);
-        let Some(file_change) = repo.file_change(path).unwrap() else {
+    for wt_path in &wt_paths {
+        let wt_path = Path::new(wt_path);
+        let Some(file_change) = repo.file_change(wt_path).unwrap() else {
             continue;
         };
-        let mut expected = AssertFileChange::new(path);
-        if repo_modified_paths.contains(&path) {
+        let mut expected = AssertFileChange::new(wt_path);
+        if repo_modified_wt_paths.contains(&wt_path) {
             modified_count += 1;
             expected = expected.modified();
         }
-        if repo_staged_paths.contains(&path) {
+        if repo_staged_wt_paths.contains(&wt_path) {
             staged_count += 1;
             expected = expected.staged();
         }
-        if repo_untracked_paths.contains(&path) {
+        if repo_untracked_wt_paths.contains(&wt_path) {
             untracked_count += 1;
             expected = expected.untracked();
         }
         expected.assert(file_change);
     }
 
-    assert_eq!(repo_modified_paths.len(), modified_count);
-    assert_eq!(repo_staged_paths.len(), staged_count);
-    assert_eq!(repo_untracked_paths.len(), untracked_count);
+    assert_eq!(repo_modified_wt_paths.len(), modified_count);
+    assert_eq!(repo_staged_wt_paths.len(), staged_count);
+    assert_eq!(repo_untracked_wt_paths.len(), untracked_count);
 }

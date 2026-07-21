@@ -2,76 +2,26 @@ use std::fmt::Debug;
 
 use rstest::*;
 
+use crate::testing;
+
 use super::*;
-
-fn modified_file<P>(wt_path: P) -> FileChange
-where
-    P: Into<PathBuf>,
-{
-    let wt_path = wt_path.into();
-    FileChange {
-        wt_path,
-        modified: true,
-        staged: false,
-        untracked: false,
-    }
-}
-
-fn staged_file<P>(wt_path: P) -> FileChange
-where
-    P: Into<PathBuf>,
-{
-    let wt_path = wt_path.into();
-    FileChange {
-        wt_path,
-        modified: false,
-        staged: true,
-        untracked: false,
-    }
-}
-
-fn modified_and_staged_file<P>(wt_path: P) -> FileChange
-where
-    P: Into<PathBuf>,
-{
-    let wt_path = wt_path.into();
-    FileChange {
-        wt_path,
-        modified: true,
-        staged: true,
-        untracked: false,
-    }
-}
-
-fn untracked_file<P>(wt_path: P) -> FileChange
-where
-    P: Into<PathBuf>,
-{
-    let wt_path = wt_path.into();
-    FileChange {
-        wt_path,
-        modified: false,
-        staged: false,
-        untracked: true,
-    }
-}
 
 #[fixture]
 fn mixed_repository_changes() -> RepositoryChanges {
     let mut files = vec![];
     for i in 0..4 {
-        files.push(modified_file(format!("{i}.modified.txt")));
+        files.push(testing::modified_file(format!("{i}.modified.txt")));
     }
     for i in 0..6 {
-        files.push(staged_file(format!("{i}.staged.txt")));
+        files.push(testing::staged_file(format!("{i}.staged.txt")));
     }
     for i in 0..1 {
-        files.push(modified_and_staged_file(format!(
+        files.push(testing::modified_and_staged_file(format!(
             "{i}.modified_and_staged.txt"
         )));
     }
     for i in 0..5 {
-        files.push(untracked_file(format!("{i}.untracked.txt")));
+        files.push(testing::untracked_file(format!("{i}.untracked.txt")));
     }
     RepositoryChanges::new(files).unwrap()
 }

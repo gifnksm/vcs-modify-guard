@@ -1,43 +1,7 @@
 use super::*;
-use crate::repository::FileChange;
+use crate::{repository::FileChange, testing};
 
 const WORKTREE: &str = "repo";
-
-fn modified_file(wt_path: &str) -> FileChange {
-    FileChange {
-        wt_path: wt_path.into(),
-        modified: true,
-        staged: false,
-        untracked: false,
-    }
-}
-
-fn staged_file(wt_path: &str) -> FileChange {
-    FileChange {
-        wt_path: wt_path.into(),
-        modified: false,
-        staged: true,
-        untracked: false,
-    }
-}
-
-fn modified_and_staged_file(wt_path: &str) -> FileChange {
-    FileChange {
-        wt_path: wt_path.into(),
-        modified: true,
-        staged: true,
-        untracked: false,
-    }
-}
-
-fn untracked_file(wt_path: &str) -> FileChange {
-    FileChange {
-        wt_path: wt_path.into(),
-        modified: false,
-        staged: false,
-        untracked: true,
-    }
-}
 
 #[derive(Clone, Debug)]
 struct StubRepo {
@@ -243,7 +207,7 @@ fn check_safe_to_modify_returns_allowed_for_clean_path() {
 #[test]
 fn check_safe_to_modify_returns_blocked_by_staged_for_staged_only_path() {
     let backend = StubBackend::default()
-        .with_repo(StubRepo::default().with_path_changes([staged_file("staged.txt")]));
+        .with_repo(StubRepo::default().with_path_changes([testing::staged_file("staged.txt")]));
 
     let result = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
@@ -255,7 +219,7 @@ fn check_safe_to_modify_returns_blocked_by_staged_for_staged_only_path() {
 #[test]
 fn check_safe_to_modify_returns_allowed_for_staged_only_path_when_allow_staged_is_enabled() {
     let backend = StubBackend::default()
-        .with_repo(StubRepo::default().with_path_changes([staged_file("staged.txt")]));
+        .with_repo(StubRepo::default().with_path_changes([testing::staged_file("staged.txt")]));
 
     let result = AllowOptions::new()
         .allow_staged(true)
@@ -268,8 +232,8 @@ fn check_safe_to_modify_returns_allowed_for_staged_only_path_when_allow_staged_i
 #[test]
 fn check_safe_to_modify_returns_blocked_by_dirty_for_dirty_only_path() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        modified_file("modified.txt"),
-        untracked_file("untracked.txt"),
+        testing::modified_file("modified.txt"),
+        testing::untracked_file("untracked.txt"),
     ]));
 
     let result = AllowOptions::new()
@@ -282,10 +246,10 @@ fn check_safe_to_modify_returns_blocked_by_dirty_for_dirty_only_path() {
 #[test]
 fn check_safe_to_modify_returns_blocked_by_dirty_with_dirty_and_staged_files() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        modified_file("a-modified.txt"),
-        staged_file("b-staged.txt"),
-        modified_and_staged_file("c-modified-and-staged.txt"),
-        untracked_file("d-untracked.txt"),
+        testing::modified_file("a-modified.txt"),
+        testing::staged_file("b-staged.txt"),
+        testing::modified_and_staged_file("c-modified-and-staged.txt"),
+        testing::untracked_file("d-untracked.txt"),
     ]));
 
     let result = AllowOptions::new()
@@ -307,9 +271,9 @@ fn check_safe_to_modify_returns_blocked_by_dirty_with_dirty_and_staged_files() {
 fn check_safe_to_modify_returns_blocked_by_dirty_without_staged_files_when_allow_staged_is_enabled()
 {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        modified_file("a-modified.txt"),
-        staged_file("b-staged.txt"),
-        modified_and_staged_file("c-modified-and-staged.txt"),
+        testing::modified_file("a-modified.txt"),
+        testing::staged_file("b-staged.txt"),
+        testing::modified_and_staged_file("c-modified-and-staged.txt"),
     ]));
 
     let result = AllowOptions::new()
@@ -327,7 +291,7 @@ fn check_safe_to_modify_returns_blocked_by_dirty_without_staged_files_when_allow
 #[test]
 fn check_safe_to_modify_checks_only_the_queried_path_by_default() {
     let backend = StubBackend::default().with_repo(
-        StubRepo::default().with_repository_changes([modified_file("root-modified.txt")]),
+        StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
     );
 
     let result = AllowOptions::new()
@@ -355,7 +319,7 @@ fn check_safe_to_modify_resolves_path_before_querying_path_changes() {
 #[test]
 fn check_safe_to_modify_checks_the_entire_repository_when_enabled() {
     let backend = StubBackend::default().with_repo(
-        StubRepo::default().with_repository_changes([modified_file("root-modified.txt")]),
+        StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
     );
 
     let result = AllowOptions::new()

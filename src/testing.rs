@@ -15,6 +15,54 @@ use assert_fs::{
 
 use crate::repository::{FileChange, RepositoryChanges};
 
+pub(crate) fn modified_file<P>(wt_path: P) -> FileChange
+where
+    P: Into<PathBuf>,
+{
+    FileChange {
+        wt_path: wt_path.into(),
+        modified: true,
+        staged: false,
+        untracked: false,
+    }
+}
+
+pub(crate) fn staged_file<P>(wt_path: P) -> FileChange
+where
+    P: Into<PathBuf>,
+{
+    FileChange {
+        wt_path: wt_path.into(),
+        modified: false,
+        staged: true,
+        untracked: false,
+    }
+}
+
+pub(crate) fn modified_and_staged_file<P>(wt_path: P) -> FileChange
+where
+    P: Into<PathBuf>,
+{
+    FileChange {
+        wt_path: wt_path.into(),
+        modified: true,
+        staged: true,
+        untracked: false,
+    }
+}
+
+pub(crate) fn untracked_file<P>(wt_path: P) -> FileChange
+where
+    P: Into<PathBuf>,
+{
+    FileChange {
+        wt_path: wt_path.into(),
+        modified: false,
+        staged: false,
+        untracked: true,
+    }
+}
+
 #[must_use]
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct AssertRepositoryChanges {

@@ -548,7 +548,7 @@ fn repository_changes_reports_modified_file(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([MODIFIED_FILE])
+        .dirty([MODIFIED_FILE])
         .assert(changes);
 }
 
@@ -576,7 +576,7 @@ fn repository_changes_reports_modified_and_staged_file(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([MODIFIED_AND_STAGED_FILE])
+        .dirty([MODIFIED_AND_STAGED_FILE])
         .staged([MODIFIED_AND_STAGED_FILE])
         .assert(changes);
 }
@@ -591,7 +591,7 @@ fn repository_changes_reports_deleted_file(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([DELETED_FILE])
+        .dirty([DELETED_FILE])
         .assert(changes);
 }
 
@@ -619,7 +619,7 @@ fn repository_changes_reports_untracked_file(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .untracked([UNTRACKED_FILE])
+        .dirty([UNTRACKED_FILE])
         .assert(changes);
 }
 
@@ -645,9 +645,13 @@ fn repository_changes_reports_mixed_changes(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([MODIFIED_FILE, MODIFIED_AND_STAGED_FILE, DELETED_FILE])
+        .dirty([
+            MODIFIED_FILE,
+            MODIFIED_AND_STAGED_FILE,
+            DELETED_FILE,
+            UNTRACKED_FILE,
+        ])
         .staged([STAGED_FILE, MODIFIED_AND_STAGED_FILE, INDEX_DELETED_FILE])
-        .untracked([UNTRACKED_FILE])
         .assert(changes);
 }
 
@@ -661,7 +665,7 @@ fn repository_changes_reports_modified_file_in_subdir(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([SUBDIR_MODIFIED_FILE])
+        .dirty([SUBDIR_MODIFIED_FILE])
         .assert(changes);
 }
 
@@ -675,7 +679,7 @@ fn repository_changes_reports_untracked_file_in_subdir(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.repository_changes().unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .untracked([SUBDIR_UNTRACKED_FILE])
+        .dirty([SUBDIR_UNTRACKED_FILE])
         .assert(changes);
 }
 
@@ -704,7 +708,7 @@ fn path_changes_reports_modified_file(
     for query in ["", "."] {
         let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
         AssertRepositoryChanges::default()
-            .modified([MODIFIED_FILE])
+            .dirty([MODIFIED_FILE])
             .assert(changes);
     }
 }
@@ -734,7 +738,7 @@ fn path_changes_reports_modified_file_in_subdir(
     for query in ["", ".", "subdir", SUBDIR_MODIFIED_FILE] {
         let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
         AssertRepositoryChanges::default()
-            .modified([SUBDIR_MODIFIED_FILE])
+            .dirty([SUBDIR_MODIFIED_FILE])
             .assert(changes);
     }
 }
@@ -750,7 +754,7 @@ fn path_changes_reports_untracked_file_in_subdir(
     for query in ["", ".", "subdir", SUBDIR_UNTRACKED_FILE] {
         let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
         AssertRepositoryChanges::default()
-            .untracked([SUBDIR_UNTRACKED_FILE])
+            .dirty([SUBDIR_UNTRACKED_FILE])
             .assert(changes);
     }
 }
@@ -779,8 +783,7 @@ fn path_changes_reports_only_changes_under_queried_directory(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.path_changes(Path::new("subdir")).unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([SUBDIR_MODIFIED_FILE])
-        .untracked([SUBDIR_UNTRACKED_FILE])
+        .dirty([SUBDIR_MODIFIED_FILE, SUBDIR_UNTRACKED_FILE])
         .assert(changes);
 }
 
@@ -797,7 +800,7 @@ fn path_changes_reports_only_queried_file(
         .unwrap()
         .unwrap();
     AssertRepositoryChanges::default()
-        .modified([SUBDIR_MODIFIED_FILE])
+        .dirty([SUBDIR_MODIFIED_FILE])
         .assert(changes);
 }
 
@@ -811,7 +814,7 @@ fn path_changes_treats_directory_path_as_literal_pathspec(
     let repo = backend.open(path).unwrap().unwrap();
     let changes = repo.path_changes(Path::new("subdir[1]")).unwrap().unwrap();
     AssertRepositoryChanges::default()
-        .modified([LITERAL_SUBDIR_MODIFIED_FILE])
+        .dirty([LITERAL_SUBDIR_MODIFIED_FILE])
         .assert(changes);
 }
 
@@ -836,9 +839,7 @@ fn file_change_reports_modified_file(
     let path = worktree_with_modified_file.path();
     let repo = backend.open(path).unwrap().unwrap();
     let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(MODIFIED_FILE)
-        .modified()
-        .assert(change);
+    AssertFileChange::new(MODIFIED_FILE).dirty().assert(change);
 }
 
 #[apply(all_backends)]
@@ -866,7 +867,7 @@ fn file_change_reports_modified_and_staged_file(
         .unwrap()
         .unwrap();
     AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
-        .modified()
+        .dirty()
         .staged()
         .assert(change);
 }
@@ -880,9 +881,7 @@ fn file_change_reports_deleted_file(
     let path = worktree_with_deleted_file.path();
     let repo = backend.open(path).unwrap().unwrap();
     let change = repo.file_change(Path::new(DELETED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(DELETED_FILE)
-        .modified()
-        .assert(change);
+    AssertFileChange::new(DELETED_FILE).dirty().assert(change);
 }
 
 #[apply(all_backends)]
@@ -914,9 +913,7 @@ fn file_change_reports_untracked_file(
         .file_change(Path::new(UNTRACKED_FILE))
         .unwrap()
         .unwrap();
-    AssertFileChange::new(UNTRACKED_FILE)
-        .untracked()
-        .assert(change);
+    AssertFileChange::new(UNTRACKED_FILE).dirty().assert(change);
 }
 
 #[apply(all_backends)]
@@ -944,9 +941,7 @@ fn file_change_reports_mixed_changes(
     assert!(change.is_none());
 
     let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(MODIFIED_FILE)
-        .modified()
-        .assert(change);
+    AssertFileChange::new(MODIFIED_FILE).dirty().assert(change);
 
     let change = repo.file_change(Path::new(STAGED_FILE)).unwrap().unwrap();
     AssertFileChange::new(STAGED_FILE).staged().assert(change);
@@ -956,7 +951,7 @@ fn file_change_reports_mixed_changes(
         .unwrap()
         .unwrap();
     AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
-        .modified()
+        .dirty()
         .staged()
         .assert(change);
 
@@ -964,9 +959,7 @@ fn file_change_reports_mixed_changes(
         .file_change(Path::new(UNTRACKED_FILE))
         .unwrap()
         .unwrap();
-    AssertFileChange::new(UNTRACKED_FILE)
-        .untracked()
-        .assert(change);
+    AssertFileChange::new(UNTRACKED_FILE).dirty().assert(change);
 
     let change = repo.file_change(Path::new(IGNORED_FILE)).unwrap();
     assert!(change.is_none());
@@ -979,7 +972,7 @@ fn file_change_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink:
     let path = worktree_with_symlink.path();
     let repo = backend.open(path).unwrap().unwrap();
     let change = repo.file_change(Path::new(SYMLINK_FILE)).unwrap().unwrap();
-    AssertFileChange::new(CLEAN_FILE).modified().assert(change);
+    AssertFileChange::new(CLEAN_FILE).dirty().assert(change);
 }
 
 #[apply(all_backends)]
@@ -1006,37 +999,37 @@ fn file_change_returns_canonicalized_path(
     let wt_path = PathBuf::from(format!("subdir//{MODIFIED_FILE}"));
     let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 
     let wt_path = PathBuf::from(format!("./{SUBDIR_MODIFIED_FILE}"));
     let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 
     let wt_path = PathBuf::from(format!("subdir/./{MODIFIED_FILE}"));
     let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 
     let wt_path = PathBuf::from(format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
     let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 
     let wt_path = PathBuf::from(format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
     let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 
     let wt_path = Path::new(SUBDIR_MODIFIED_FILE);
     let change = repo.file_change(wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 }
 
@@ -1066,7 +1059,7 @@ fn file_change_reports_modified_file_in_subdir(
         .unwrap()
         .unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .modified()
+        .dirty()
         .assert(change);
 }
 
@@ -1083,7 +1076,7 @@ fn file_change_reports_untracked_file_in_subdir(
         .unwrap()
         .unwrap();
     AssertFileChange::new(SUBDIR_UNTRACKED_FILE)
-        .untracked()
+        .dirty()
         .assert(change);
 }
 
@@ -1113,7 +1106,7 @@ fn file_change_returns_none_for_file_in_ignored_directory_path(
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_and_file_change_agree_for_paths_reported_individually(
+fn repository_changes_and_file_change_agree_for_reported_paths(
     backend: &dyn VcsBackend,
     worktree_with_mixed_changes: PathInTempDir,
 ) {
@@ -1132,20 +1125,15 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
         IGNORED_FILE,
     ];
 
-    let mut modified_count = 0;
+    let mut dirty_count = 0;
     let mut staged_count = 0;
-    let mut untracked_count = 0;
 
-    let repo_modified_wt_paths = repo_changes
-        .modified_files()
+    let repo_dirty_wt_paths = repo_changes
+        .dirty_files()
         .map(FileChange::wt_path)
         .collect::<Vec<_>>();
     let repo_staged_wt_paths = repo_changes
         .staged_files()
-        .map(FileChange::wt_path)
-        .collect::<Vec<_>>();
-    let repo_untracked_wt_paths = repo_changes
-        .untracked_files()
         .map(FileChange::wt_path)
         .collect::<Vec<_>>();
 
@@ -1155,22 +1143,17 @@ fn repository_changes_and_file_change_agree_for_paths_reported_individually(
             continue;
         };
         let mut expected = AssertFileChange::new(wt_path);
-        if repo_modified_wt_paths.contains(&wt_path) {
-            modified_count += 1;
-            expected = expected.modified();
+        if repo_dirty_wt_paths.contains(&wt_path) {
+            dirty_count += 1;
+            expected = expected.dirty();
         }
         if repo_staged_wt_paths.contains(&wt_path) {
             staged_count += 1;
             expected = expected.staged();
         }
-        if repo_untracked_wt_paths.contains(&wt_path) {
-            untracked_count += 1;
-            expected = expected.untracked();
-        }
         expected.assert(file_change);
     }
 
-    assert_eq!(repo_modified_wt_paths.len(), modified_count);
+    assert_eq!(repo_dirty_wt_paths.len(), dirty_count);
     assert_eq!(repo_staged_wt_paths.len(), staged_count);
-    assert_eq!(repo_untracked_wt_paths.len(), untracked_count);
 }

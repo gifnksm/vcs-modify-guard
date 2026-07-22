@@ -237,24 +237,24 @@ fn check_safe_to_modify_returns_safe_for_staged_only_path_when_allow_staged_is_e
 #[test]
 fn check_safe_to_modify_returns_unsafe_due_to_dirty_for_dirty_only_path() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        testing::modified_file("modified.txt"),
-        testing::untracked_file("untracked.txt"),
+        testing::dirty_file("a-dirty.txt"),
+        testing::dirty_file("b-dirty.txt"),
     ]));
 
     let safety = AllowOptions::new()
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_unsafe_due_to_dirty(safety, &["modified.txt", "untracked.txt"], &[]);
+    assert_unsafe_due_to_dirty(safety, &["a-dirty.txt", "b-dirty.txt"], &[]);
 }
 
 #[test]
 fn check_safe_to_modify_returns_unsafe_due_to_dirty_with_dirty_and_staged_files() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        testing::modified_file("a-modified.txt"),
+        testing::dirty_file("a-dirty.txt"),
         testing::staged_file("b-staged.txt"),
-        testing::modified_and_staged_file("c-modified-and-staged.txt"),
-        testing::untracked_file("d-untracked.txt"),
+        testing::dirty_and_staged_file("c-dirty-and-staged.txt"),
+        testing::dirty_file("d-dirty.txt"),
     ]));
 
     let safety = AllowOptions::new()
@@ -263,21 +263,17 @@ fn check_safe_to_modify_returns_unsafe_due_to_dirty_with_dirty_and_staged_files(
 
     assert_unsafe_due_to_dirty(
         safety,
-        &[
-            "a-modified.txt",
-            "c-modified-and-staged.txt",
-            "d-untracked.txt",
-        ],
-        &["b-staged.txt", "c-modified-and-staged.txt"],
+        &["a-dirty.txt", "c-dirty-and-staged.txt", "d-dirty.txt"],
+        &["b-staged.txt", "c-dirty-and-staged.txt"],
     );
 }
 
 #[test]
 fn check_safe_to_modify_returns_unsafe_due_to_dirty_when_allow_staged_is_enabled() {
     let backend = StubBackend::default().with_repo(StubRepo::default().with_path_changes([
-        testing::modified_file("a-modified.txt"),
+        testing::dirty_file("a-dirty.txt"),
         testing::staged_file("b-staged.txt"),
-        testing::modified_and_staged_file("c-modified-and-staged.txt"),
+        testing::dirty_and_staged_file("c-dirty-and-staged.txt"),
     ]));
 
     let safety = AllowOptions::new()
@@ -285,17 +281,13 @@ fn check_safe_to_modify_returns_unsafe_due_to_dirty_when_allow_staged_is_enabled
         .check_safe_to_modify_with_backend("target", &backend)
         .unwrap();
 
-    assert_unsafe_due_to_dirty(
-        safety,
-        &["a-modified.txt", "c-modified-and-staged.txt"],
-        &[],
-    );
+    assert_unsafe_due_to_dirty(safety, &["a-dirty.txt", "c-dirty-and-staged.txt"], &[]);
 }
 
 #[test]
 fn check_safe_to_modify_checks_only_the_queried_path_by_default() {
     let backend = StubBackend::default().with_repo(
-        StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
+        StubRepo::default().with_repository_changes([testing::dirty_file("root-dirty.txt")]),
     );
 
     let safety = AllowOptions::new()
@@ -323,7 +315,7 @@ fn check_safe_to_modify_resolves_path_before_querying_path_changes() {
 #[test]
 fn check_safe_to_modify_checks_the_entire_repository_when_enabled() {
     let backend = StubBackend::default().with_repo(
-        StubRepo::default().with_repository_changes([testing::modified_file("root-modified.txt")]),
+        StubRepo::default().with_repository_changes([testing::dirty_file("root-dirty.txt")]),
     );
 
     let safety = AllowOptions::new()
@@ -331,5 +323,5 @@ fn check_safe_to_modify_checks_the_entire_repository_when_enabled() {
         .check_safe_to_modify_with_backend("subdir", &backend)
         .unwrap();
 
-    assert_unsafe_due_to_dirty(safety, &["root-modified.txt"], &[]);
+    assert_unsafe_due_to_dirty(safety, &["root-dirty.txt"], &[]);
 }

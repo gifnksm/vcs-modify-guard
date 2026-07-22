@@ -15,15 +15,14 @@ use assert_fs::{
 
 use crate::repository::{FileChange, RepositoryChanges};
 
-pub(crate) fn modified_file<P>(wt_path: P) -> FileChange
+pub(crate) fn dirty_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     FileChange {
         wt_path: wt_path.into(),
-        modified: true,
+        dirty: true,
         staged: false,
-        untracked: false,
     }
 }
 
@@ -33,33 +32,19 @@ where
 {
     FileChange {
         wt_path: wt_path.into(),
-        modified: false,
+        dirty: false,
         staged: true,
-        untracked: false,
     }
 }
 
-pub(crate) fn modified_and_staged_file<P>(wt_path: P) -> FileChange
+pub(crate) fn dirty_and_staged_file<P>(wt_path: P) -> FileChange
 where
     P: Into<PathBuf>,
 {
     FileChange {
         wt_path: wt_path.into(),
-        modified: true,
+        dirty: true,
         staged: true,
-        untracked: false,
-    }
-}
-
-pub(crate) fn untracked_file<P>(wt_path: P) -> FileChange
-where
-    P: Into<PathBuf>,
-{
-    FileChange {
-        wt_path: wt_path.into(),
-        modified: false,
-        staged: false,
-        untracked: true,
     }
 }
 
@@ -67,9 +52,8 @@ where
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct AssertRepositoryChanges {
     files: BTreeMap<PathBuf, AssertFileChange>,
-    modified: BTreeSet<PathBuf>,
+    dirty: BTreeSet<PathBuf>,
     staged: BTreeSet<PathBuf>,
-    untracked: BTreeSet<PathBuf>,
 }
 
 impl From<RepositoryChanges> for AssertRepositoryChanges {
@@ -92,24 +76,21 @@ impl From<RepositoryChanges> for AssertRepositoryChanges {
             .collect();
 
         let wt_paths = collect_wt_paths(changes.files());
-        let modified = collect_wt_paths(changes.modified_files());
-        assert!(modified.is_subset(&wt_paths));
+        let dirty = collect_wt_paths(changes.dirty_files());
+        assert!(dirty.is_subset(&wt_paths));
         let staged = collect_wt_paths(changes.staged_files());
         assert!(staged.is_subset(&wt_paths));
-        let untracked = collect_wt_paths(changes.untracked_files());
-        assert!(untracked.is_subset(&wt_paths));
 
         Self {
             files,
-            modified,
+            dirty,
             staged,
-            untracked,
         }
     }
 }
 
 impl AssertRepositoryChanges {
-    pub(crate) fn modified<I, P>(mut self, wt_paths: I) -> Self
+    pub(crate) fn dirty<I, P>(mut self, wt_paths: I) -> Self
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
@@ -120,8 +101,8 @@ impl AssertRepositoryChanges {
                 .files
                 .entry(wt_path.clone())
                 .or_insert_with(|| AssertFileChange::new(wt_path.clone()));
-            file.modified = true;
-            self.modified.insert(wt_path);
+            file.dirty = true;
+            self.dirty.insert(wt_path);
         }
         self
     }
@@ -143,23 +124,6 @@ impl AssertRepositoryChanges {
         self
     }
 
-    pub(crate) fn untracked<I, P>(mut self, wt_paths: I) -> Self
-    where
-        I: IntoIterator<Item = P>,
-        P: Into<PathBuf>,
-    {
-        for wt_path in wt_paths {
-            let wt_path = wt_path.into();
-            let file = self
-                .files
-                .entry(wt_path.clone())
-                .or_insert_with(|| AssertFileChange::new(wt_path.clone()));
-            file.untracked = true;
-            self.untracked.insert(wt_path);
-        }
-        self
-    }
-
     #[track_caller]
     pub(crate) fn assert(self, actual: RepositoryChanges) {
         let actual = Self::from(actual);
@@ -171,24 +135,21 @@ impl AssertRepositoryChanges {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct AssertFileChange {
     wt_path: PathBuf,
-    modified: bool,
+    dirty: bool,
     staged: bool,
-    untracked: bool,
 }
 
 impl From<FileChange> for AssertFileChange {
     fn from(change: FileChange) -> Self {
         let FileChange {
             wt_path,
-            modified,
+            dirty,
             staged,
-            untracked,
         } = change;
         Self {
             wt_path,
-            modified,
+            dirty,
             staged,
-            untracked,
         }
     }
 }
@@ -200,24 +161,18 @@ impl AssertFileChange {
     {
         Self {
             wt_path: wt_path.into(),
-            modified: false,
+            dirty: false,
             staged: false,
-            untracked: false,
         }
     }
 
-    pub(crate) fn modified(mut self) -> Self {
-        self.modified = true;
+    pub(crate) fn dirty(mut self) -> Self {
+        self.dirty = true;
         self
     }
 
     pub(crate) fn staged(mut self) -> Self {
         self.staged = true;
-        self
-    }
-
-    pub(crate) fn untracked(mut self) -> Self {
-        self.untracked = true;
         self
     }
 

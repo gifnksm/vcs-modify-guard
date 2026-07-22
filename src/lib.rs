@@ -11,8 +11,9 @@
 //!   safe-to-modify checks and returns a [`ModificationSafety`] describing whether
 //!   modification is safe. By default, checks are scoped to the queried path.
 //! - [`repository::Repository`] is a lower-level API for tools that need to
-//!   discover a repository and inspect modified, staged, or untracked files to
-//!   implement their own policy.
+//!   discover a repository and inspect whether files are dirty and/or staged to
+//!   implement their own policy. Dirty files include modified tracked files and
+//!   untracked files.
 //!
 //! Most users should start with [`AllowOptions`]. Reach for
 //! [`repository::Repository`] only when you need custom behavior beyond the

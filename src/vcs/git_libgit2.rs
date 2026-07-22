@@ -203,7 +203,11 @@ impl Libgit2Repository {
                         // At this point `wt_path` has already been resolved to an
                         // existing file within the worktree, so `NotFound` means the
                         // file is untracked by Git rather than missing from disk.
-                        return Ok(StatusFlags::untracked().build(wt_path));
+                        return Ok(StatusFlags {
+                            dirty: true,
+                            staged: false,
+                        }
+                        .build(wt_path));
                     }
                     NormalizedPath::Missing(wt_path) => {
                         return Err(error::PathNotFoundSnafu { path: wt_path }.build());
@@ -220,17 +224,14 @@ impl Libgit2Repository {
 
 #[derive(Debug, Clone, Copy)]
 struct StatusFlags {
-    modified: bool,
+    dirty: bool,
     staged: bool,
-    untracked: bool,
 }
 
 impl From<git2::Status> for StatusFlags {
     fn from(status: git2::Status) -> Self {
-        if status.is_wt_new() {
-            return Self::untracked();
-        }
-        let modified = status.is_wt_modified()
+        let dirty = status.is_wt_new()
+            || status.is_wt_modified()
             || status.is_wt_deleted()
             || status.is_wt_renamed()
             || status.is_wt_typechange();
@@ -239,46 +240,25 @@ impl From<git2::Status> for StatusFlags {
             || status.is_index_deleted()
             || status.is_index_renamed()
             || status.is_index_typechange();
-        Self::tracked(modified, staged)
+        Self { dirty, staged }
     }
 }
 
 impl StatusFlags {
-    fn untracked() -> Self {
-        Self {
-            modified: false,
-            staged: false,
-            untracked: true,
-        }
-    }
-
-    fn tracked(modified: bool, staged: bool) -> Self {
-        Self {
-            modified,
-            staged,
-            untracked: false,
-        }
-    }
-
     fn build<P>(self, wt_path: P) -> Option<FileChange>
     where
         P: Into<PathBuf>,
     {
-        let Self {
-            modified,
-            staged,
-            untracked,
-        } = self;
-        if !modified && !staged && !untracked {
+        let Self { dirty, staged } = self;
+        if !dirty && !staged {
             return None;
         }
 
         let wt_path = wt_path.into();
         Some(FileChange {
             wt_path,
-            modified,
+            dirty,
             staged,
-            untracked,
         })
     }
 }

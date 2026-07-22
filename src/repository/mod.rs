@@ -4,8 +4,9 @@
 //! crate's built-in `--allow-*` safe-to-modify policy.
 //!
 //! This module provides the [`Repository`] type for tools that need to
-//! discover a VCS repository and inspect modified, staged, or untracked files
-//! directly in order to implement custom policy logic.
+//! discover a VCS repository and inspect whether files are dirty and/or staged
+//! directly in order to implement custom policy logic. Dirty files include
+//! modified tracked files and untracked files.
 //!
 //! Paths returned by change queries are relative to the repository worktree.
 //! Query methods that take a `wt_path` argument interpret it relative to that
@@ -91,9 +92,9 @@ mod tests;
 /// Most users should start with [`crate::AllowOptions`], which implements the
 /// crate's built-in `--allow-*` safe-to-modify policy.
 ///
-/// Use this type when you need to discover a repository and inspect modified,
-/// staged, or untracked files directly in order to implement custom policy
-/// logic.
+/// Use this type when you need to discover a repository and inspect whether
+/// files are dirty and/or staged directly in order to implement custom policy
+/// logic. Dirty files include modified tracked files and untracked files.
 ///
 /// Repositories without a worktree, such as Git bare repositories, are not
 /// represented by this type.
@@ -243,8 +244,8 @@ impl Repository {
 
     /// Returns the aggregate file changes in the repository worktree.
     ///
-    /// Returns `Ok(None)` if the repository has no modified, staged, or
-    /// untracked files. Clean tracked files are not included in this aggregate
+    /// Returns `Ok(None)` if the repository has no dirty or staged files.
+    /// Clean tracked files are not included in this aggregate
     /// change set. Files ignored by the VCS are also omitted because this
     /// crate is intended for `--allow-*` style checks, which treat them the
     /// same as clean files.
@@ -267,8 +268,8 @@ impl Repository {
     /// change set contains changes for files under that directory. The
     /// repository worktree root is also accepted.
     ///
-    /// Returns `Ok(None)` if the resolved path has no modified, staged, or
-    /// untracked files. Clean tracked files are not included in this aggregate
+    /// Returns `Ok(None)` if the resolved path has no dirty or staged files.
+    /// Clean tracked files are not included in this aggregate
     /// change set. Files ignored by the VCS are also omitted because this
     /// crate is intended for `--allow-*` style checks, which treat them the
     /// same as clean files.
@@ -300,8 +301,8 @@ impl Repository {
         self.inner.path_changes(wt_path.as_ref())
     }
 
-    /// Returns the modified, staged, or untracked change for the
-    /// worktree-relative file path `wt_path` within the repository, if any.
+    /// Returns the dirty and/or staged change for the worktree-relative file
+    /// path `wt_path` within the repository, if any.
     ///
     /// Returns `Ok(None)` if the resolved file path is clean or ignored by the
     /// VCS.
@@ -320,8 +321,8 @@ impl Repository {
     /// path passed to this method when the input reaches the same file path
     /// through symlinks or other equivalent non-canonical forms.
     ///
-    /// A file may be both staged and modified at the same time if it has
-    /// staged changes and additional unstaged changes.
+    /// A file may be both staged and dirty at the same time if it has staged
+    /// changes and additional unstaged tracked changes.
     ///
     /// This operation is intended for file paths. It does not perform rename
     /// detection.
@@ -351,8 +352,9 @@ impl Repository {
 /// Values of this type are returned by [`Repository::repository_changes`] and
 /// [`Repository::path_changes`].
 ///
-/// This type contains only modified, staged, or untracked files. Clean
-/// tracked files are not included. Files ignored by the VCS are also omitted
+/// This type contains only dirty and/or staged files. Dirty files have
+/// unstaged modifications or are untracked. Clean tracked files are not
+/// included. Files ignored by the VCS are also omitted
 /// because this crate is intended for `--allow-*` style checks, which treat
 /// them the same as clean files.
 ///
@@ -364,9 +366,8 @@ impl Repository {
 #[derive(Debug, Clone)]
 pub struct RepositoryChanges {
     files: Vec<FileChange>,
-    num_modified_files: usize,
+    num_dirty_files: usize,
     num_staged_files: usize,
-    num_untracked_files: usize,
 }
 
 impl RepositoryChanges {
@@ -388,21 +389,18 @@ impl RepositoryChanges {
             return None;
         }
 
-        let mut num_modified_files = 0;
+        let mut num_dirty_files = 0;
         let mut num_staged_files = 0;
-        let mut num_untracked_files = 0;
 
         for file in &files {
-            num_modified_files += usize::from(file.is_modified());
+            num_dirty_files += usize::from(file.is_dirty());
             num_staged_files += usize::from(file.is_staged());
-            num_untracked_files += usize::from(file.is_untracked());
         }
 
         Some(Self {
             files,
-            num_modified_files,
+            num_dirty_files,
             num_staged_files,
-            num_untracked_files,
         })
     }
 
@@ -417,16 +415,17 @@ impl RepositoryChanges {
         }
     }
 
-    /// Returns an iterator over files with unstaged changes in this change
-    /// set.
+    /// Returns an iterator over dirty files in this change set.
     ///
+    /// A dirty file has unstaged modifications or is untracked.
+    /// Staged-only changes are not considered dirty.
     /// Files are yielded in ascending worktree-relative path order.
     #[inline]
     #[must_use]
-    pub fn modified_files(&self) -> ModifiedFiles<'_> {
-        ModifiedFiles {
+    pub fn dirty_files(&self) -> DirtyFiles<'_> {
+        DirtyFiles {
             iter: self.files.iter(),
-            len: self.num_modified_files,
+            len: self.num_dirty_files,
         }
     }
 
@@ -442,42 +441,6 @@ impl RepositoryChanges {
         }
     }
 
-    /// Returns an iterator over untracked files in this change set.
-    ///
-    /// Files are yielded in ascending worktree-relative path order.
-    #[inline]
-    #[must_use]
-    pub fn untracked_files(&self) -> UntrackedFiles<'_> {
-        UntrackedFiles {
-            iter: self.files.iter(),
-            len: self.num_untracked_files,
-        }
-    }
-
-    /// Returns whether this change set contains any files with unstaged
-    /// changes.
-    ///
-    /// This does not include staged changes or untracked files.
-    #[inline]
-    #[must_use]
-    pub fn has_modified_files(&self) -> bool {
-        self.num_modified_files > 0
-    }
-
-    /// Returns whether this change set contains any files with staged changes.
-    #[inline]
-    #[must_use]
-    pub fn has_staged_files(&self) -> bool {
-        self.num_staged_files > 0
-    }
-
-    /// Returns whether this change set contains any untracked files.
-    #[inline]
-    #[must_use]
-    pub fn has_untracked_files(&self) -> bool {
-        self.num_untracked_files > 0
-    }
-
     /// Returns whether this change set contains any dirty files.
     ///
     /// A dirty file has unstaged modifications or is untracked.
@@ -485,7 +448,14 @@ impl RepositoryChanges {
     #[inline]
     #[must_use]
     pub fn has_dirty_files(&self) -> bool {
-        self.has_modified_files() || self.has_untracked_files()
+        self.num_dirty_files > 0
+    }
+
+    /// Returns whether this change set contains any files with staged changes.
+    #[inline]
+    #[must_use]
+    pub fn has_staged_files(&self) -> bool {
+        self.num_staged_files > 0
     }
 }
 
@@ -495,23 +465,23 @@ impl RepositoryChanges {
 /// by iterators over [`RepositoryChanges`] returned by
 /// [`Repository::repository_changes`] and [`Repository::path_changes`].
 ///
-/// Instances of this type always represent a modified, staged, or untracked
-/// file, or a combination of those states. Clean tracked files and files
-/// ignored by the VCS are not represented; [`Repository::file_change`]
-/// returns `None` for those cases.
+/// Instances of this type always represent a dirty file, a staged file, or
+/// both. Dirty files have unstaged modifications or are untracked. Clean
+/// tracked files and files ignored by the VCS are not represented;
+/// [`Repository::file_change`] returns `None` for those cases.
 ///
 /// The stored path is the worktree-relative path associated with this change
 /// in the VCS. It may refer to a tracked path that is no longer present in the
 /// worktree.
 ///
 /// More than one predicate may return `true` for the same file. For example,
-/// a file may have staged changes and additional unstaged modifications.
+/// a file may have staged changes and additional unstaged tracked
+/// modifications.
 #[derive(Debug, Clone)]
 pub struct FileChange {
     pub(crate) wt_path: PathBuf,
-    pub(crate) modified: bool,
+    pub(crate) dirty: bool,
     pub(crate) staged: bool,
-    pub(crate) untracked: bool,
 }
 
 impl FileChange {
@@ -531,29 +501,6 @@ impl FileChange {
         &self.wt_path
     }
 
-    /// Returns whether the file has unstaged changes.
-    ///
-    /// This does not include staged changes or untracked files.
-    #[inline]
-    #[must_use]
-    pub fn is_modified(&self) -> bool {
-        self.modified
-    }
-
-    /// Returns whether the file has staged changes in the index.
-    #[inline]
-    #[must_use]
-    pub fn is_staged(&self) -> bool {
-        self.staged
-    }
-
-    /// Returns whether the file is untracked.
-    #[inline]
-    #[must_use]
-    pub fn is_untracked(&self) -> bool {
-        self.untracked
-    }
-
     /// Returns whether the file is dirty.
     ///
     /// A dirty file has unstaged modifications or is untracked.
@@ -561,7 +508,14 @@ impl FileChange {
     #[inline]
     #[must_use]
     pub fn is_dirty(&self) -> bool {
-        self.modified || self.untracked
+        self.dirty
+    }
+
+    /// Returns whether the file has staged changes in the index.
+    #[inline]
+    #[must_use]
+    pub fn is_staged(&self) -> bool {
+        self.staged
     }
 }
 
@@ -602,22 +556,22 @@ impl ExactSizeIterator for Files<'_> {
     }
 }
 
-/// An iterator over files with unstaged changes in a [`RepositoryChanges`].
+/// An iterator over dirty files in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryChanges::modified_files`] method.
+/// This struct is created by the [`RepositoryChanges::dirty_files`] method.
 /// Files are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
-pub struct ModifiedFiles<'a> {
+pub struct DirtyFiles<'a> {
     iter: slice::Iter<'a, FileChange>,
     len: usize,
 }
 
-impl<'a> Iterator for ModifiedFiles<'a> {
+impl<'a> Iterator for DirtyFiles<'a> {
     type Item = &'a FileChange;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let file = self.iter.find(|file| file.is_modified())?;
+        let file = self.iter.find(|file| file.is_dirty())?;
         self.len -= 1;
         Some(file)
     }
@@ -628,16 +582,16 @@ impl<'a> Iterator for ModifiedFiles<'a> {
     }
 }
 
-impl DoubleEndedIterator for ModifiedFiles<'_> {
+impl DoubleEndedIterator for DirtyFiles<'_> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
-        let file = self.iter.rfind(|file| file.is_modified())?;
+        let file = self.iter.rfind(|file| file.is_dirty())?;
         self.len -= 1;
         Some(file)
     }
 }
 
-impl ExactSizeIterator for ModifiedFiles<'_> {
+impl ExactSizeIterator for DirtyFiles<'_> {
     #[inline]
     fn len(&self) -> usize {
         self.len
@@ -680,48 +634,6 @@ impl DoubleEndedIterator for StagedFiles<'_> {
 }
 
 impl ExactSizeIterator for StagedFiles<'_> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
-/// An iterator over untracked files in a [`RepositoryChanges`].
-///
-/// This struct is created by the [`RepositoryChanges::untracked_files`] method.
-/// Files are yielded in ascending worktree-relative path order.
-#[derive(Debug, Clone)]
-pub struct UntrackedFiles<'a> {
-    iter: slice::Iter<'a, FileChange>,
-    len: usize,
-}
-
-impl<'a> Iterator for UntrackedFiles<'a> {
-    type Item = &'a FileChange;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let file = self.iter.find(|file| file.is_untracked())?;
-        self.len -= 1;
-        Some(file)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len, Some(self.len))
-    }
-}
-
-impl DoubleEndedIterator for UntrackedFiles<'_> {
-    #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        let file = self.iter.rfind(|file| file.is_untracked())?;
-        self.len -= 1;
-        Some(file)
-    }
-}
-
-impl ExactSizeIterator for UntrackedFiles<'_> {
     #[inline]
     fn len(&self) -> usize {
         self.len

@@ -9,18 +9,15 @@ use crate::testing;
 fn mixed_repository_changes() -> RepositoryChanges {
     let mut files = vec![];
     for i in 0..4 {
-        files.push(testing::modified_file(format!("{i}.modified.txt")));
+        files.push(testing::dirty_file(format!("{i}.dirty.txt")));
     }
     for i in 0..6 {
         files.push(testing::staged_file(format!("{i}.staged.txt")));
     }
     for i in 0..1 {
-        files.push(testing::modified_and_staged_file(format!(
-            "{i}.modified_and_staged.txt"
+        files.push(testing::dirty_and_staged_file(format!(
+            "{i}.dirty_and_staged.txt"
         )));
-    }
-    for i in 0..5 {
-        files.push(testing::untracked_file(format!("{i}.untracked.txt")));
     }
     RepositoryChanges::new(files).unwrap()
 }
@@ -41,9 +38,8 @@ fn repository_changes_files_returns_sorted_unique_files(
     let changes = mixed_repository_changes;
 
     assert_files_sorted(changes.files());
-    assert_files_sorted(changes.modified_files());
+    assert_files_sorted(changes.dirty_files());
     assert_files_sorted(changes.staged_files());
-    assert_files_sorted(changes.untracked_files());
 }
 
 #[track_caller]
@@ -91,12 +87,9 @@ fn repository_changes_satisfies_iterator_properties(mixed_repository_changes: Re
     assert_iterator_properties(changes.files());
     assert_eq!(changes.files().len(), changes.files.len());
 
-    assert_iterator_properties(changes.modified_files());
-    assert_eq!(changes.modified_files().len(), changes.num_modified_files);
+    assert_iterator_properties(changes.dirty_files());
+    assert_eq!(changes.dirty_files().len(), changes.num_dirty_files);
 
     assert_iterator_properties(changes.staged_files());
     assert_eq!(changes.staged_files().len(), changes.num_staged_files);
-
-    assert_iterator_properties(changes.untracked_files());
-    assert_eq!(changes.untracked_files().len(), changes.num_untracked_files);
 }

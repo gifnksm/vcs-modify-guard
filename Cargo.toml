@@ -61,6 +61,9 @@ git-libgit2 = ["dep:git2"]
 # libgit2 when the backend is enabled.
 vendored-libgit2 = ["git2?/vendored-libgit2"]
 
+# Enable the Git CLI backend implementation.
+git-cli = []
+
 [lints.clippy]
 cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }

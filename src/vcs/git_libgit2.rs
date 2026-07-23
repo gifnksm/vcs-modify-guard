@@ -176,8 +176,10 @@ impl Libgit2Repository {
         let mut file_entries = entries
             .iter()
             .filter_map(|entry| {
-                // Match `cargo fix`: ignore status entries whose paths cannot be represented as UTF-8.
-                let wt_path = entry.path().ok()?;
+                // Like `cargo fix`, aggregate queries ignore paths that cannot
+                // be represented on this platform instead of failing the whole
+                // query.
+                let wt_path = util::bytes_to_os_str(entry.path_bytes()).ok()?;
                 StatusFlags::from(entry.status()).build(wt_path)
             })
             .peekable();

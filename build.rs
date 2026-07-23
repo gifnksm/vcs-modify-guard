@@ -2,7 +2,7 @@
 
 use std::env;
 
-const GIT_FEATURES: &[&str] = &["git-libgit2"];
+const GIT_FEATURES: &[&str] = &["git-libgit2", "git-cli"];
 const CFG_VCS_BACKEND_ENABLED: &str = "vcs_backend_enabled";
 const CFG_GIT_BACKEND_ENABLED: &str = "git_backend_enabled";
 

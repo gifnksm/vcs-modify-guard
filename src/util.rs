@@ -5,14 +5,29 @@
 
 use std::{
     collections::VecDeque,
+    ffi::OsStr,
     fs::Metadata,
     io,
     path::{Component, Path, PathBuf, StripPrefixError},
+    str::Utf8Error,
 };
 
 use snafu::{IntoError as _, OptionExt as _, ensure};
 
 use crate::{ModifyGuardError, error};
+
+#[cfg(unix)]
+#[expect(clippy::unnecessary_wraps, reason = "Unix implementation cannot fail")]
+pub(crate) fn bytes_to_os_str(bytes: &[u8]) -> Result<&OsStr, Utf8Error> {
+    use std::os::unix::ffi::OsStrExt as _;
+    Ok(OsStr::from_bytes(bytes))
+}
+
+#[cfg(not(unix))]
+pub(crate) fn bytes_to_os_str(bytes: &[u8]) -> Result<&OsStr, Utf8Error> {
+    let s = str::from_utf8(bytes)?;
+    Ok(OsStr::new(s))
+}
 
 pub(crate) fn read_path_metadata(path: &Path) -> Result<Metadata, ModifyGuardError> {
     path.metadata().map_err(|source| {
@@ -279,7 +294,7 @@ mod tests {
     // lexically resolves the `..` components before existence checks, so
     // trimming never reaches them and the remaining path is accepted as
     // `X.txt`.
-    #[cfg(windows)]
+    #[cfg(not(unix))]
     #[rstest]
     fn normalize_worktree_path_resolves_dotdot_before_missing_suffix(file_tree: PathInTempDir) {
         let path = file_tree;

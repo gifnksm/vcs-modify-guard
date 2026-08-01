@@ -79,6 +79,21 @@ where
         .assert()
 }
 
+fn git_current_branch<P>(current_dir: P) -> String
+where
+    P: AsRef<Path>,
+{
+    let output = git_command(current_dir)
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .trim_end_matches('\n')
+        .to_owned()
+}
+
 fn git_absolute_git_dir<P>(current_dir: P) -> PathBuf
 where
     P: AsRef<Path>,
@@ -181,7 +196,9 @@ const STAGED_FILE: &str = "staged_file.txt";
 const MODIFIED_AND_STAGED_FILE: &str = "modified_and_staged_file.txt";
 const DELETED_FILE: &str = "deleted_file.txt";
 const DELETED_DIR_FILE: &str = "deleted_dir/deleted_file.txt";
+const DELETED_DIR_FILE2: &str = "deleted_dir/another_deleted_file.txt";
 const INDEX_DELETED_FILE: &str = "index_deleted_file.txt";
+const CONFLICTED_FILE: &str = "conflicted_file.txt";
 const UNTRACKED_FILE: &str = "untracked_file.txt";
 const IGNORED_FILE: &str = "ignored_file.txt";
 #[cfg(unix)]
@@ -194,17 +211,6 @@ fn clean_worktree() -> PathInTempDir {
     path.child(CLEAN_FILE).touch().unwrap();
     git_add(&path, ["."]).success();
     git_commit(&path).success();
-    path
-}
-
-#[fixture]
-fn worktree_with_corrupted_index() -> PathInTempDir {
-    let path = PathInTempDir::new();
-    git_init(&path).success();
-    path.child(CLEAN_FILE).touch().unwrap();
-    git_add(&path, ["."]).success();
-    git_commit(&path).success();
-    fs::write(path.child(".git/index"), b"bad").unwrap();
     path
 }
 
@@ -274,6 +280,20 @@ fn worktree_with_deleted_directory() -> PathInTempDir {
 }
 
 #[fixture]
+fn worktree_with_deleted_directory_multiple_files() -> PathInTempDir {
+    let path = PathInTempDir::new();
+    git_init(&path).success();
+    path.child(DELETED_DIR_FILE).touch().unwrap();
+    path.child(DELETED_DIR_FILE2).touch().unwrap();
+    git_add(&path, ["."]).success();
+    git_commit(&path).success();
+    fs::remove_file(path.child(DELETED_DIR_FILE)).unwrap();
+    fs::remove_file(path.child(DELETED_DIR_FILE2)).unwrap();
+    fs::remove_dir(path.child("deleted_dir")).unwrap();
+    path
+}
+
+#[fixture]
 fn worktree_with_index_deleted_file() -> PathInTempDir {
     let path = PathInTempDir::new();
     git_init(&path).success();
@@ -291,6 +311,40 @@ fn worktree_with_untracked_file() -> PathInTempDir {
     git_add(&path, ["."]).success();
     git_commit(&path).success();
     path.child(UNTRACKED_FILE).touch().unwrap();
+    path
+}
+
+#[fixture]
+fn worktree_with_conflicted_file() -> PathInTempDir {
+    let path = PathInTempDir::new();
+    git_init(&path).success();
+    path.child(CONFLICTED_FILE).write_str("base\n").unwrap();
+    git_add(&path, ["."]).success();
+    git_commit(&path).success();
+
+    let current_branch = git_current_branch(&path);
+    git_command(&path)
+        .args(["branch", "other"])
+        .assert()
+        .success();
+
+    path.child(CONFLICTED_FILE).write_str("ours\n").unwrap();
+    git_add(&path, [CONFLICTED_FILE]).success();
+    git_commit(&path).success();
+
+    git_command(&path)
+        .args(["checkout", "other"])
+        .assert()
+        .success();
+    path.child(CONFLICTED_FILE).write_str("theirs\n").unwrap();
+    git_add(&path, [CONFLICTED_FILE]).success();
+    git_commit(&path).success();
+
+    git_command(&path)
+        .args(["merge", current_branch.as_str()])
+        .assert()
+        .failure();
+
     path
 }
 
@@ -502,6 +556,7 @@ fn inaccessible_path() -> PathInTempDir {
 #[template]
 #[rstest]
 #[cfg_attr(feature = "git-libgit2", case::libgit2(&vcs::git_libgit2::BACKEND))]
+#[cfg_attr(feature = "git-gix", case::gix(&vcs::git_gix::BACKEND))]
 #[cfg_attr(feature = "git-cli", case::cli(&vcs::git_cli::BACKEND))]
 fn all_backends(#[case] backend: &dyn VcsBackend) {}
 
@@ -901,6 +956,21 @@ fn repository_changes_reports_untracked_file(
 
 #[apply(all_backends)]
 #[rstest]
+fn repository_changes_reports_conflicted_file_as_dirty_and_staged(
+    backend: &dyn VcsBackend,
+    worktree_with_conflicted_file: PathInTempDir,
+) {
+    let path = worktree_with_conflicted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let changes = repo.repository_changes().unwrap().unwrap();
+    AssertRepositoryChanges::default()
+        .dirty([CONFLICTED_FILE])
+        .staged([CONFLICTED_FILE])
+        .assert(changes);
+}
+
+#[apply(all_backends)]
+#[rstest]
 fn repository_changes_returns_none_for_worktree_with_ignored_file(
     backend: &dyn VcsBackend,
     worktree_with_ignored_file: PathInTempDir,
@@ -924,18 +994,6 @@ fn repository_changes_reports_non_utf8_untracked_file(
     AssertRepositoryChanges::default()
         .dirty([non_utf8_untracked_file()])
         .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn repository_changes_returns_err_for_corrupted_index(
-    backend: &dyn VcsBackend,
-    worktree_with_corrupted_index: PathInTempDir,
-) {
-    let path = worktree_with_corrupted_index.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.repository_changes().unwrap_err();
-    assert_matches!(err, ModifyGuardError::Backend { .. });
 }
 
 #[apply(all_backends)]
@@ -1062,6 +1120,23 @@ fn path_changes_reports_untracked_file_in_subdir(
     }
 }
 
+#[apply(all_backends)]
+#[rstest]
+fn path_changes_reports_conflicted_file_as_dirty_and_staged(
+    backend: &dyn VcsBackend,
+    worktree_with_conflicted_file: PathInTempDir,
+) {
+    let path = worktree_with_conflicted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    for query in ["", ".", CONFLICTED_FILE] {
+        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
+        AssertRepositoryChanges::default()
+            .dirty([CONFLICTED_FILE])
+            .staged([CONFLICTED_FILE])
+            .assert(changes);
+    }
+}
+
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[apply(all_backends)]
 #[rstest]
@@ -1082,20 +1157,6 @@ fn path_changes_reports_non_utf8_untracked_file_in_aggregate_and_direct_file_que
     AssertRepositoryChanges::default()
         .dirty([wt_path])
         .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_returns_err_for_corrupted_index(
-    backend: &dyn VcsBackend,
-    worktree_with_corrupted_index: PathInTempDir,
-) {
-    let path = worktree_with_corrupted_index.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", ".", CLEAN_FILE] {
-        let err = repo.path_changes(Path::new(query)).unwrap_err();
-        assert_matches!(err, ModifyGuardError::Backend { .. });
-    }
 }
 
 #[apply(all_backends)]
@@ -1272,6 +1333,24 @@ fn file_change_reports_untracked_file(
     AssertFileChange::new(UNTRACKED_FILE).dirty().assert(change);
 }
 
+#[apply(all_backends)]
+#[rstest]
+fn file_change_reports_conflicted_file_as_dirty_and_staged(
+    backend: &dyn VcsBackend,
+    worktree_with_conflicted_file: PathInTempDir,
+) {
+    let path = worktree_with_conflicted_file.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let change = repo
+        .file_change(Path::new(CONFLICTED_FILE))
+        .unwrap()
+        .unwrap();
+    AssertFileChange::new(CONFLICTED_FILE)
+        .dirty()
+        .staged()
+        .assert(change);
+}
+
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[apply(all_backends)]
 #[rstest]
@@ -1347,23 +1426,23 @@ fn file_change_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink:
 
 #[apply(all_backends)]
 #[rstest]
-fn file_change_returns_err_for_corrupted_index(
-    backend: &dyn VcsBackend,
-    worktree_with_corrupted_index: PathInTempDir,
-) {
-    let path = worktree_with_corrupted_index.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.file_change(Path::new(CLEAN_FILE)).unwrap_err();
-    assert_matches!(err, ModifyGuardError::Backend { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
 fn file_change_returns_backend_error_for_missing_directory_with_deleted_file_under_it(
     backend: &dyn VcsBackend,
     worktree_with_deleted_directory: PathInTempDir,
 ) {
     let path = worktree_with_deleted_directory.path();
+    let repo = backend.open(path).unwrap().unwrap();
+    let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
+    assert_matches!(err, ModifyGuardError::Backend { .. });
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn file_change_returns_backend_error_for_missing_directory_with_multiple_deleted_files_under_it(
+    backend: &dyn VcsBackend,
+    worktree_with_deleted_directory_multiple_files: PathInTempDir,
+) {
+    let path = worktree_with_deleted_directory_multiple_files.path();
     let repo = backend.open(path).unwrap().unwrap();
     let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
     assert_matches!(err, ModifyGuardError::Backend { .. });

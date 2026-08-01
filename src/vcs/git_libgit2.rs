@@ -119,7 +119,7 @@ impl VcsRepository for Libgit2Repository {
     }
 
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        self.directory_path_changes(None)
+        self.collect_dir_changes(None)
     }
 
     fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
@@ -133,12 +133,12 @@ impl VcsRepository for Libgit2Repository {
             NormalizedPath::Missing(_) => true,
         };
         if wt_path.as_path().as_os_str().is_empty() {
-            return self.directory_path_changes(None);
+            return self.collect_dir_changes(None);
         }
         if is_dir {
-            return self.directory_path_changes(Some(&wt_path));
+            return self.collect_dir_changes(Some(&wt_path));
         }
-        let change = self.file_path_change(wt_path)?;
+        let change = self.query_file_change(wt_path)?;
         Ok(change.and_then(|change| RepositoryChanges::new([change])))
     }
 
@@ -151,12 +151,12 @@ impl VcsRepository for Libgit2Repository {
             }
             NormalizedPath::Missing(_) => {}
         }
-        self.file_path_change(wt_path)
+        self.query_file_change(wt_path)
     }
 }
 
 impl Libgit2Repository {
-    fn directory_path_changes(
+    fn collect_dir_changes(
         &self,
         wt_path: Option<&NormalizedPath>,
     ) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
@@ -193,7 +193,7 @@ impl Libgit2Repository {
         Ok(RepositoryChanges::new(file_entries))
     }
 
-    fn file_path_change(
+    fn query_file_change(
         &self,
         wt_path: NormalizedPath,
     ) -> Result<Option<FileChange>, ModifyGuardError> {
@@ -232,12 +232,14 @@ struct StatusFlags {
 
 impl From<git2::Status> for StatusFlags {
     fn from(status: git2::Status) -> Self {
-        let dirty = status.is_wt_new()
+        let dirty = status.is_conflicted()
+            || status.is_wt_new()
             || status.is_wt_modified()
             || status.is_wt_deleted()
             || status.is_wt_renamed()
             || status.is_wt_typechange();
-        let staged = status.is_index_new()
+        let staged = status.is_conflicted()
+            || status.is_index_new()
             || status.is_index_modified()
             || status.is_index_deleted()
             || status.is_index_renamed()

@@ -69,17 +69,14 @@ pub enum GitCliBackendError {
         /// The invalid output from the `git rev-parse` command.
         output: Vec<u8>,
     },
-    /// A file query matched a different path than requested.
+    /// A file query was ambiguous and matched an unexpected path.
     #[snafu(display(
-        "git file query for {} matched a different path: {}",
-        requested.display(),
-        actual.display()
+        "git file query for {} was ambiguous",
+        query.display(),
     ))]
     AmbiguousFilePath {
         /// The worktree-relative path requested by the file query.
-        requested: PathBuf,
-        /// The worktree-relative path returned by Git instead.
-        actual: PathBuf,
+        query: PathBuf,
     },
     /// A path was expected to have a parent directory, but it did not.
     #[snafu(display("path has no parent directory: {}", git_dir.display()))]
@@ -178,13 +175,13 @@ impl VcsRepository for GitCliRepository {
     }
 
     fn repository_changes(&self) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        let file_changes = self.path_files_changes(None)?;
+        let file_changes = self.collect_changes(None)?;
         Ok(RepositoryChanges::new(file_changes))
     }
 
     fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
-        let file_changes = self.path_files_changes(Some(&wt_path))?;
+        let file_changes = self.collect_changes(Some(&wt_path))?;
         Ok(RepositoryChanges::new(file_changes))
     }
 
@@ -197,38 +194,32 @@ impl VcsRepository for GitCliRepository {
             }
             NormalizedPath::Missing(_) => {}
         }
-        let mut file_changes = self.path_files_changes(Some(&wt_path))?;
-        let Some(change) = file_changes.pop() else {
-            return Ok(None);
-        };
-        // `git status <pathspec>` treats a missing directory path as a prefix match
-        // and may return changes below it. `file_change()` needs file semantics like
-        // `git2::Repository::status_file`, so accept only an exact path match.
-        if change.wt_path() == wt_path.as_path() {
-            return Ok(Some(change));
+        let file_changes = self.collect_changes(Some(&wt_path))?;
+
+        match file_changes.as_slice() {
+            [] => Ok(None),
+            // `git status <pathspec>` treats a missing directory path as a prefix match
+            // and may return changes below it. `file_change()` needs file semantics like
+            // `git2::Repository::status_file`, so accept only an exact path match.
+            [change] if change.wt_path() == wt_path.as_path() => Ok(Some(change.clone())),
+            [..] => Err(AmbiguousFilePathSnafu {
+                query: wt_path.as_path().to_path_buf(),
+            }
+            .build()
+            .into()),
         }
-        Err(AmbiguousFilePathSnafu {
-            requested: wt_path.as_path().to_path_buf(),
-            actual: change.wt_path().to_path_buf(),
-        }
-        .build()
-        .into())
     }
 }
 
 impl GitCliRepository {
-    fn path_files_changes(
+    fn collect_changes(
         &self,
         wt_path: Option<&NormalizedPath>,
     ) -> Result<Vec<FileChange>, ModifyGuardError> {
         let pathspec = wt_path
             .as_ref()
             .filter(|wt_path| !wt_path.is_empty())
-            .map(|wt_path| {
-                let mut p = OsString::from(":(literal)");
-                p.push(wt_path.as_path().as_os_str());
-                p
-            });
+            .map(|wt_path| literal_pathspec(wt_path.as_path()));
         let args = [
             "status",
             "--porcelain=v1",
@@ -263,6 +254,12 @@ const REPO_CONTEXT_ENV_VARS: &[&str] = &[
     "GIT_INDEX_FILE",
     "GIT_COMMON_DIR",
 ];
+
+fn literal_pathspec(path: &Path) -> OsString {
+    let mut pattern = OsString::from(":(top,literal)");
+    pattern.push(path.as_os_str());
+    pattern
+}
 
 fn git_command(current_dir: &Path) -> Command {
     let mut cmd = Command::new("git");

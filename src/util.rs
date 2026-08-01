@@ -149,6 +149,37 @@ impl NormalizedPath {
         };
         Ok(stripped)
     }
+
+    #[cfg(not(windows))]
+    fn into_unix_separators(self) -> Self {
+        self
+    }
+
+    #[cfg(windows)]
+    fn into_unix_separators(self) -> Self {
+        use std::{
+            ffi::OsString,
+            os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+        };
+
+        let wide = self
+            .as_path()
+            .as_os_str()
+            .encode_wide()
+            .map(|w| {
+                if w == u16::from(b'\\') {
+                    u16::from(b'/')
+                } else {
+                    w
+                }
+            })
+            .collect::<Vec<_>>();
+        let path = PathBuf::from(OsString::from_wide(&wide));
+        match self {
+            Self::Existing(_) => Self::Existing(path),
+            Self::Missing(_) => Self::Missing(path),
+        }
+    }
 }
 
 pub(crate) fn normalize_worktree_path<P, Q>(
@@ -170,7 +201,8 @@ where
     let normalized = entry_path
         .strip_prefix(&worktree_path)
         .ok()
-        .context(error::InvalidWorktreeRelativePathSnafu { path: wt_path })?;
+        .context(error::InvalidWorktreeRelativePathSnafu { path: wt_path })?
+        .into_unix_separators();
     Ok(normalized)
 }
 

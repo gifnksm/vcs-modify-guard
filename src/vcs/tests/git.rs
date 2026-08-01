@@ -12,8 +12,9 @@ use rstest::*;
 use rstest_reuse::*;
 
 use crate::{
-    ModifyGuardError,
-    repository::FileChange,
+    ModifyGuardError::{self, *},
+    VcsRepository,
+    repository::{FileChange, RepositoryChanges},
     testing::{AssertFileChange, AssertRepositoryChanges, PathInTempDir},
     vcs::{self, VcsBackend},
 };
@@ -560,603 +561,669 @@ fn inaccessible_path() -> PathInTempDir {
 #[cfg_attr(feature = "git-cli", case::cli(&vcs::git_cli::BACKEND))]
 fn all_backends(#[case] backend: &dyn VcsBackend) {}
 
+#[track_caller]
+fn assert_discover_ok<P>(backend: &dyn VcsBackend, query: P, expected_worktree: Option<&Path>)
+where
+    P: AsRef<Path>,
+{
+    let query = query.as_ref();
+    let repo = backend.discover(query).unwrap();
+    assert_eq!(repo.as_ref().map(|repo| repo.worktree()), expected_worktree);
+}
+
+#[track_caller]
+#[must_use]
+fn assert_discover_err<P>(backend: &dyn VcsBackend, query: P) -> ModifyGuardError
+where
+    P: AsRef<Path>,
+{
+    let query = query.as_ref();
+    backend.discover(query).unwrap_err()
+}
+
+macro_rules! assert_discover_err_matches {
+    ($backend:expr, $query:expr, $pattern:pat_param $(if $guard: expr)? $(,)?) => {{
+        let err = assert_discover_err($backend, $query);
+        assert_matches!(err, $pattern $(if $guard)?);
+    }};
+}
+
+#[track_caller]
+fn assert_open_ok<P>(
+    backend: &dyn VcsBackend,
+    query: P,
+    expected_worktree: Option<&Path>,
+) -> Option<Box<dyn VcsRepository>>
+where
+    P: AsRef<Path>,
+{
+    let query = query.as_ref();
+    let repo = backend.open(query).unwrap();
+    assert_eq!(repo.as_ref().map(|repo| repo.worktree()), expected_worktree);
+    repo
+}
+
+#[track_caller]
+#[must_use]
+fn assert_open_err<P>(backend: &dyn VcsBackend, query: P) -> ModifyGuardError
+where
+    P: AsRef<Path>,
+{
+    let query = query.as_ref();
+    backend.open(query).unwrap_err()
+}
+
+macro_rules! assert_open_err_matches {
+    ($backend:expr, $query:expr, $pattern:pat_param $(if $guard: expr)? $(,)?) => {{
+        let err = assert_open_err($backend, $query);
+        assert_matches!(err, $pattern $(if $guard)?);
+    }};
+}
+
+#[track_caller]
+#[must_use]
+fn open_repo<P>(backend: &dyn VcsBackend, query: P) -> Box<dyn VcsRepository>
+where
+    P: AsRef<Path>,
+{
+    let query = query.as_ref();
+    backend.open(query).unwrap().unwrap()
+}
+
+#[track_caller]
+fn assert_repository_changes_ok<R>(repo: R) -> Option<RepositoryChanges>
+where
+    R: AsRef<dyn VcsRepository>,
+{
+    repo.as_ref().repository_changes().unwrap()
+}
+
+#[track_caller]
+fn assert_path_changes_ok<R, P>(repo: R, wt_path: P) -> Option<RepositoryChanges>
+where
+    R: AsRef<dyn VcsRepository>,
+    P: AsRef<Path>,
+{
+    repo.as_ref().path_changes(wt_path.as_ref()).unwrap()
+}
+
+#[track_caller]
+fn assert_path_changes_err<R, P>(repo: R, wt_path: P) -> ModifyGuardError
+where
+    R: AsRef<dyn VcsRepository>,
+    P: AsRef<Path>,
+{
+    repo.as_ref().path_changes(wt_path.as_ref()).unwrap_err()
+}
+
+macro_rules! assert_path_changes_err_matches {
+    ($repo:expr, $wt_path:expr, $pattern:pat_param $(if $guard: expr)? $(,)?) => {{
+        let err = assert_path_changes_err($repo, $wt_path);
+        assert_matches!(err, $pattern $(if $guard)?);
+    }};
+}
+
+#[track_caller]
+fn assert_file_change_ok<R, P>(repo: R, wt_path: P) -> Option<FileChange>
+where
+    R: AsRef<dyn VcsRepository>,
+    P: AsRef<Path>,
+{
+    repo.as_ref().file_change(wt_path.as_ref()).unwrap()
+}
+
+#[track_caller]
+fn assert_file_change_err<R, P>(repo: R, wt_path: P) -> ModifyGuardError
+where
+    R: AsRef<dyn VcsRepository>,
+    P: AsRef<Path>,
+{
+    repo.as_ref().file_change(wt_path.as_ref()).unwrap_err()
+}
+
+macro_rules! assert_file_change_err_matches {
+    ($repo:expr, $wt_path:expr, $pattern:pat_param $(if $guard: expr)? $(,)?) => {{
+        let err = assert_file_change_err($repo, $wt_path);
+        assert_matches!(err, $pattern $(if $guard)?);
+    }};
+}
+
+impl AssertRepositoryChanges {
+    #[track_caller]
+    fn assert_repository_changes<R>(&self, repo: R) -> &Self
+    where
+        R: AsRef<dyn VcsRepository>,
+    {
+        let changes = assert_repository_changes_ok(repo);
+        self.assert(changes)
+    }
+
+    #[track_caller]
+    fn assert_path_changes<R, P>(&self, repo: R, wt_path: P) -> &Self
+    where
+        R: AsRef<dyn VcsRepository>,
+        P: AsRef<Path>,
+    {
+        let changes = assert_path_changes_ok(repo, wt_path);
+        self.assert(changes)
+    }
+
+    #[track_caller]
+    fn assert_file_change<R, P>(&self, repo: R, wt_path: P) -> &Self
+    where
+        R: AsRef<dyn VcsRepository>,
+        P: AsRef<Path>,
+    {
+        let wt_path = wt_path.as_ref();
+        let change = assert_file_change_ok(repo, wt_path);
+        self.file_change(wt_path).assert(change);
+        self
+    }
+}
+
+impl AssertFileChange {
+    #[track_caller]
+    fn assert_file_change<R, P>(&self, repo: R, wt_path: P) -> &Self
+    where
+        R: AsRef<dyn VcsRepository>,
+        P: AsRef<Path>,
+    {
+        let change = assert_file_change_ok(repo, wt_path);
+        self.assert(change)
+    }
+}
+
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_clean_worktree(
+fn discover_and_open_returns_repository_for_clean_worktree(
     backend: &dyn VcsBackend,
     clean_worktree: PathInTempDir,
 ) {
-    let path = clean_worktree.path();
-    let repo = backend.discover(path).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
+    let worktree_path = clean_worktree.path();
+    let queries = [worktree_path, &worktree_path.join(".git")];
+    for query in queries {
+        assert_discover_ok(backend, query, Some(worktree_path));
+        assert_open_ok(backend, query, Some(worktree_path));
+    }
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_clean_worktree_subdir(
+fn discover_returns_repository_and_open_returns_none_for_worktree_subdir(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.discover(&path.join("subdir")).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
+    let worktree_path = clean_worktree_with_subdir.path();
+    let queries = [
+        &worktree_path.join("subdir"),
+        &worktree_path.join(".git/objects"),
+    ];
+    for query in queries {
+        assert_discover_ok(backend, query, Some(worktree_path));
+        assert_open_ok(backend, query, None);
+    }
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_worktree_file(
+fn discover_returns_repository_and_open_returns_err_for_clean_worktree(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend
-        .discover(&path.join(SUBDIR_CLEAN_FILE))
-        .unwrap()
-        .unwrap();
-    assert_eq!(repo.worktree(), path);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn discover_returns_repository_for_worktree_git_dir(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.discover(&path.join(".git")).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn discover_returns_repository_for_worktree_git_dir_subdir(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend
-        .discover(&path.join(".git/objects"))
-        .unwrap()
-        .unwrap();
-    assert_eq!(repo.worktree(), path);
+    let worktree_path = clean_worktree_with_subdir.path();
+    let query = &worktree_path.join(SUBDIR_CLEAN_FILE);
+    assert_discover_ok(backend, query, Some(worktree_path));
+    assert_open_err_matches!(backend, query, PathNotADirectory { .. });
 }
 
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_worktree_in_non_utf8_directory(
+fn discover_and_open_returns_repository_for_worktree_in_non_utf8_directory(
     backend: &dyn VcsBackend,
     clean_worktree_in_non_utf8_directory: PathInTempDir,
 ) {
-    let path = clean_worktree_in_non_utf8_directory.path();
-    let repo = backend.discover(path).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
+    let worktree_path = clean_worktree_in_non_utf8_directory.path();
+    assert_discover_ok(backend, worktree_path, Some(worktree_path));
+    assert_open_ok(backend, worktree_path, Some(worktree_path));
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_linked_worktree_git_dir(
+fn discover_and_open_returns_repository_for_linked_worktree_git_dir(
     backend: &dyn VcsBackend,
     linked_worktree_paths: LinkedWorktreePaths,
 ) {
-    let repo = backend
-        .discover(linked_worktree_paths.linked_git_dir())
-        .unwrap()
-        .unwrap();
-    assert_eq!(repo.worktree(), linked_worktree_paths.linked_worktree());
+    let worktree_path = linked_worktree_paths.linked_worktree();
+    let query = linked_worktree_paths.linked_git_dir();
+    assert_discover_ok(backend, query, Some(worktree_path));
+    assert_open_ok(backend, query, Some(worktree_path));
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_repository_for_linked_worktree_git_dir_subdir(
+fn discover_returns_repository_and_open_returns_none_for_linked_worktree_git_dir(
     backend: &dyn VcsBackend,
     linked_worktree_paths: LinkedWorktreePaths,
 ) {
-    let repo = backend
-        .discover(&linked_worktree_paths.linked_git_dir().join("logs"))
-        .unwrap()
-        .unwrap();
-    assert_eq!(repo.worktree(), linked_worktree_paths.linked_worktree());
+    let worktree_path = linked_worktree_paths.linked_worktree();
+    let query = &linked_worktree_paths.linked_git_dir().join("logs");
+    assert_discover_ok(backend, query, Some(worktree_path));
+    assert_open_ok(backend, query, None);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_none_for_non_git_directory(
+fn discover_and_open_returns_none_for_non_git_directory(
     backend: &dyn VcsBackend,
     non_git_directory: PathInTempDir,
 ) {
-    let path = non_git_directory.path();
-    assert!(backend.discover(path).unwrap().is_none());
+    let query = non_git_directory.path();
+    assert_discover_ok(backend, query, None);
+    assert_open_ok(backend, query, None);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_err_for_bare_repository(
+fn discover_and_open_returns_err_for_bare_repository(
     backend: &dyn VcsBackend,
     bare_repository: PathInTempDir,
 ) {
-    let path = bare_repository.path();
-    let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::RepositoryWithoutWorktree { .. });
+    let query = bare_repository.path();
+    assert_discover_err_matches!(backend, query, RepositoryWithoutWorktree { .. });
+    assert_open_err_matches!(backend, query, RepositoryWithoutWorktree { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_err_for_bare_repository_subdir(
+fn discover_returns_err_and_open_returns_none_for_bare_repository_subdir(
     backend: &dyn VcsBackend,
     bare_repository: PathInTempDir,
 ) {
-    let path = bare_repository.path();
-    let err = backend.discover(&path.join("objects")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::RepositoryWithoutWorktree { .. });
+    let repo_path = bare_repository.path();
+    let query = &repo_path.join("objects");
+    assert_discover_err_matches!(backend, query, RepositoryWithoutWorktree { .. });
+    assert_open_ok(backend, query, None);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_err_for_non_existent_path(
+fn discover_and_open_returns_err_for_non_existent_path(
     backend: &dyn VcsBackend,
     non_existent_path: PathInTempDir,
 ) {
-    let path = non_existent_path.path();
-    let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
+    let query = non_existent_path.path();
+    assert_discover_err_matches!(backend, query, PathNotFound { .. });
+    assert_open_err_matches!(backend, query, PathNotFound { .. });
 }
 
 #[cfg(unix)]
 #[apply(all_backends)]
 #[rstest]
-fn discover_returns_err_for_inaccessible_path(
+fn discover_and_open_returns_err_for_inaccessible_path(
     backend: &dyn VcsBackend,
     inaccessible_path: PathInTempDir,
 ) {
-    let path = inaccessible_path.path();
-    let err = backend.discover(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::InaccessiblePath { .. });
+    let query = inaccessible_path.path();
+    assert_discover_err_matches!(backend, query, InaccessiblePath { .. });
+    assert_open_err_matches!(backend, query, InaccessiblePath { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn open_returns_repository_for_clean_worktree(
+fn query_changes_returns_none_for_clean_worktree(
     backend: &dyn VcsBackend,
     clean_worktree: PathInTempDir,
 ) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
+    let worktree_path = clean_worktree.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, CLEAN_FILE)
+        .assert_file_change(&repo, CLEAN_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn open_returns_none_for_worktree_subdir(
+fn query_changes_returns_none_for_clean_worktree_with_subdir(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
-    let path = clean_worktree_with_subdir.path();
-    assert!(backend.open(&path.join("subdir")).unwrap().is_none());
+    let worktree_path = clean_worktree_with_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, "subdir")
+        .assert_path_changes(&repo, "subdir/.")
+        .assert_path_changes(&repo, SUBDIR_CLEAN_FILE)
+        .assert_file_change(&repo, SUBDIR_CLEAN_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn open_returns_err_for_worktree_file(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    let err = backend.open(&path.join(SUBDIR_CLEAN_FILE)).unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotADirectory { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_repository_for_worktree_git_dir(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.open(&path.join(".git")).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_repository_for_worktree_git_dir_subdir(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    assert!(backend.open(&path.join(".git/objects")).unwrap().is_none());
-}
-
-#[cfg(all(unix, not(target_vendor = "apple")))]
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_repository_for_worktree_in_non_utf8_directory(
-    backend: &dyn VcsBackend,
-    clean_worktree_in_non_utf8_directory: PathInTempDir,
-) {
-    let path = clean_worktree_in_non_utf8_directory.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    assert_eq!(repo.worktree(), path);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_repository_for_linked_worktree_git_dir(
-    backend: &dyn VcsBackend,
-    linked_worktree_paths: LinkedWorktreePaths,
-) {
-    let repo = backend
-        .open(linked_worktree_paths.linked_git_dir())
-        .unwrap()
-        .unwrap();
-    assert_eq!(repo.worktree(), linked_worktree_paths.linked_worktree());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_none_for_linked_worktree_git_dir_subdir(
-    backend: &dyn VcsBackend,
-    linked_worktree_paths: LinkedWorktreePaths,
-) {
-    assert!(
-        backend
-            .open(&linked_worktree_paths.linked_git_dir().join("logs"))
-            .unwrap()
-            .is_none()
-    );
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_none_for_non_git_directory(
-    backend: &dyn VcsBackend,
-    non_git_directory: PathInTempDir,
-) {
-    let path = non_git_directory.path();
-    assert!(backend.open(path).unwrap().is_none());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_err_for_bare_repository(backend: &dyn VcsBackend, bare_repository: PathInTempDir) {
-    let path = bare_repository.path();
-    let err = backend.open(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::RepositoryWithoutWorktree { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_none_for_bare_repository_subdir(
-    backend: &dyn VcsBackend,
-    bare_repository: PathInTempDir,
-) {
-    let path = bare_repository.path();
-    assert!(backend.open(&path.join("objects")).unwrap().is_none());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_err_for_non_existent_path(
-    backend: &dyn VcsBackend,
-    non_existent_path: PathInTempDir,
-) {
-    let path = non_existent_path.path();
-    let err = backend.open(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
-}
-
-#[cfg(unix)]
-#[apply(all_backends)]
-#[rstest]
-fn open_returns_err_for_inaccessible_path(
-    backend: &dyn VcsBackend,
-    inaccessible_path: PathInTempDir,
-) {
-    let path = inaccessible_path.path();
-    let err = backend.open(path).unwrap_err();
-    assert_matches!(err, ModifyGuardError::InaccessiblePath { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn repository_changes_returns_none_for_clean_worktree(
-    backend: &dyn VcsBackend,
-    clean_worktree: PathInTempDir,
-) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap();
-    assert!(changes.is_none());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn repository_changes_reports_modified_file(
+fn query_changes_reports_modified_file(
     backend: &dyn VcsBackend,
     worktree_with_modified_file: PathInTempDir,
 ) {
-    let path = worktree_with_modified_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_modified_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .dirty([MODIFIED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, MODIFIED_FILE)
+        .assert_file_change(&repo, MODIFIED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_staged_file(
+fn query_changes_reports_modified_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_modified_subdir: PathInTempDir,
+) {
+    let worktree_path = worktree_with_modified_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .dirty([SUBDIR_MODIFIED_FILE])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, "subdir")
+        .assert_path_changes(&repo, "subdir/.")
+        .assert_path_changes(&repo, SUBDIR_MODIFIED_FILE)
+        .assert_file_change(&repo, SUBDIR_MODIFIED_FILE);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn query_changes_reports_staged_file(
     backend: &dyn VcsBackend,
     worktree_with_staged_file: PathInTempDir,
 ) {
-    let path = worktree_with_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_staged_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .staged([STAGED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, STAGED_FILE)
+        .assert_file_change(&repo, STAGED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_modified_and_staged_file(
+fn query_changes_reports_modified_and_staged_file(
     backend: &dyn VcsBackend,
     worktree_with_modified_and_staged_file: PathInTempDir,
 ) {
-    let path = worktree_with_modified_and_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_modified_and_staged_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .dirty([MODIFIED_AND_STAGED_FILE])
         .staged([MODIFIED_AND_STAGED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, MODIFIED_AND_STAGED_FILE)
+        .assert_file_change(&repo, MODIFIED_AND_STAGED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_deleted_file(
+fn query_changes_reports_deleted_file(
     backend: &dyn VcsBackend,
     worktree_with_deleted_file: PathInTempDir,
 ) {
-    let path = worktree_with_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_deleted_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .dirty([DELETED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, DELETED_FILE)
+        .assert_file_change(&repo, DELETED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_index_deleted_file(
+fn query_changes_reports_index_deleted_file(
     backend: &dyn VcsBackend,
     worktree_with_index_deleted_file: PathInTempDir,
 ) {
-    let path = worktree_with_index_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_index_deleted_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .staged([INDEX_DELETED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, INDEX_DELETED_FILE)
+        .assert_file_change(&repo, INDEX_DELETED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_untracked_file(
+fn query_changes_reports_untracked_file(
     backend: &dyn VcsBackend,
     worktree_with_untracked_file: PathInTempDir,
 ) {
-    let path = worktree_with_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_untracked_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .dirty([UNTRACKED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, UNTRACKED_FILE)
+        .assert_file_change(&repo, UNTRACKED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_conflicted_file_as_dirty_and_staged(
+fn query_changes_reports_untracked_file_in_subdir(
+    backend: &dyn VcsBackend,
+    worktree_with_untracked_subdir: PathInTempDir,
+) {
+    let worktree_path = worktree_with_untracked_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .dirty([SUBDIR_UNTRACKED_FILE])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, "subdir")
+        .assert_path_changes(&repo, "subdir/.")
+        .assert_path_changes(&repo, SUBDIR_UNTRACKED_FILE)
+        .assert_file_change(&repo, SUBDIR_UNTRACKED_FILE);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn query_changes_reports_conflicted_file_as_dirty_and_staged(
     backend: &dyn VcsBackend,
     worktree_with_conflicted_file: PathInTempDir,
 ) {
-    let path = worktree_with_conflicted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_conflicted_file.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
         .dirty([CONFLICTED_FILE])
         .staged([CONFLICTED_FILE])
-        .assert(changes);
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, CONFLICTED_FILE)
+        .assert_file_change(&repo, CONFLICTED_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_returns_none_for_worktree_with_ignored_file(
+fn query_changes_returns_none_for_worktree_with_ignored_file(
     backend: &dyn VcsBackend,
     worktree_with_ignored_file: PathInTempDir,
 ) {
-    let path = worktree_with_ignored_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap();
-    assert!(changes.is_none());
+    let worktree_path = worktree_with_ignored_file.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, IGNORED_FILE)
+        .assert_file_change(&repo, IGNORED_FILE);
+}
+
+#[apply(all_backends)]
+#[rstest]
+fn query_changes_returns_none_for_file_in_ignored_directory_path(
+    backend: &dyn VcsBackend,
+    worktree_with_ignored_subdir: PathInTempDir,
+) {
+    let worktree_path = worktree_with_ignored_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertRepositoryChanges::default()
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, SUBDIR_IGNORED_FILE)
+        .assert_file_change(&repo, SUBDIR_IGNORED_FILE);
 }
 
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_non_utf8_untracked_file(
+fn query_changes_reports_non_utf8_untracked_file(
     backend: &dyn VcsBackend,
     worktree_with_non_utf8_untracked_file: PathInTempDir,
 ) {
-    let path = worktree_with_non_utf8_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_non_utf8_untracked_file.path();
+    let repo = open_repo(backend, worktree_path);
+    let untracked_file = non_utf8_untracked_file();
     AssertRepositoryChanges::default()
-        .dirty([non_utf8_untracked_file()])
-        .assert(changes);
+        .dirty([&untracked_file])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, &untracked_file)
+        .assert_file_change(&repo, &untracked_file);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_mixed_changes(
+fn query_changes_reports_mixed_changes(
     backend: &dyn VcsBackend,
     worktree_with_mixed_changes: PathInTempDir,
 ) {
-    let path = worktree_with_mixed_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
-    AssertRepositoryChanges::default()
+    let worktree_path = worktree_with_mixed_changes.path();
+    let repo = open_repo(backend, worktree_path);
+    let changes = AssertRepositoryChanges::default()
         .dirty([
             MODIFIED_FILE,
             MODIFIED_AND_STAGED_FILE,
             DELETED_FILE,
             UNTRACKED_FILE,
         ])
-        .staged([STAGED_FILE, MODIFIED_AND_STAGED_FILE, INDEX_DELETED_FILE])
-        .assert(changes);
+        .staged([STAGED_FILE, MODIFIED_AND_STAGED_FILE, INDEX_DELETED_FILE]);
+    changes
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".");
+    let queries = [
+        CLEAN_FILE,
+        MODIFIED_FILE,
+        STAGED_FILE,
+        MODIFIED_AND_STAGED_FILE,
+        DELETED_FILE,
+        INDEX_DELETED_FILE,
+        UNTRACKED_FILE,
+        IGNORED_FILE,
+    ];
+    for query in queries {
+        changes
+            .with_filtered(query, |c| {
+                c.assert_path_changes(&repo, query);
+            })
+            .assert_file_change(&repo, query);
+    }
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_modified_file_in_subdir(
+fn query_changes_reports_deleted_file_under_missing_directory_prefix(
     backend: &dyn VcsBackend,
-    worktree_with_modified_subdir: PathInTempDir,
+    worktree_with_deleted_directory: PathInTempDir,
 ) {
-    let path = worktree_with_modified_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_deleted_directory.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
-        .dirty([SUBDIR_MODIFIED_FILE])
-        .assert(changes);
+        .dirty([DELETED_DIR_FILE])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, "deleted_dir")
+        .assert_path_changes(&repo, "deleted_dir/.")
+        .assert_path_changes(&repo, DELETED_DIR_FILE);
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn repository_changes_reports_untracked_file_in_subdir(
+fn query_changes_reports_only_changes_under_queried_directory_or_queried_file(
     backend: &dyn VcsBackend,
-    worktree_with_untracked_subdir: PathInTempDir,
+    worktree_with_root_and_subdir_changes: PathInTempDir,
 ) {
-    let path = worktree_with_untracked_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_root_and_subdir_changes.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
-        .dirty([SUBDIR_UNTRACKED_FILE])
-        .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_returns_none_for_clean_worktree(
-    backend: &dyn VcsBackend,
-    clean_worktree: PathInTempDir,
-) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", "."] {
-        let changes = repo.path_changes(Path::new(query)).unwrap();
-        assert!(changes.is_none());
-    }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_modified_file(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_file: PathInTempDir,
-) {
-    let path = worktree_with_modified_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", "."] {
-        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
-        AssertRepositoryChanges::default()
-            .dirty([MODIFIED_FILE])
-            .assert(changes);
-    }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_returns_none_for_clean_worktree_with_subdir(
-    backend: &dyn VcsBackend,
-    clean_worktree_with_subdir: PathInTempDir,
-) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", ".", "subdir", SUBDIR_CLEAN_FILE] {
-        let changes = repo.path_changes(Path::new(query)).unwrap();
-        assert!(changes.is_none());
-    }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_modified_file_in_subdir(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_subdir: PathInTempDir,
-) {
-    let path = worktree_with_modified_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", ".", "subdir", SUBDIR_MODIFIED_FILE] {
-        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
-        AssertRepositoryChanges::default()
-            .dirty([SUBDIR_MODIFIED_FILE])
-            .assert(changes);
-    }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_untracked_file_in_subdir(
-    backend: &dyn VcsBackend,
-    worktree_with_untracked_subdir: PathInTempDir,
-) {
-    let path = worktree_with_untracked_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", ".", "subdir", SUBDIR_UNTRACKED_FILE] {
-        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
-        AssertRepositoryChanges::default()
-            .dirty([SUBDIR_UNTRACKED_FILE])
-            .assert(changes);
-    }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_conflicted_file_as_dirty_and_staged(
-    backend: &dyn VcsBackend,
-    worktree_with_conflicted_file: PathInTempDir,
-) {
-    let path = worktree_with_conflicted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    for query in ["", ".", CONFLICTED_FILE] {
-        let changes = repo.path_changes(Path::new(query)).unwrap().unwrap();
-        AssertRepositoryChanges::default()
-            .dirty([CONFLICTED_FILE])
-            .staged([CONFLICTED_FILE])
-            .assert(changes);
-    }
+        .dirty([
+            MODIFIED_FILE,
+            SUBDIR_MODIFIED_FILE,
+            SUBDIR1_MODIFIED_FILE,
+            UNTRACKED_FILE,
+            SUBDIR_UNTRACKED_FILE,
+            SUBDIR1_UNTRACKED_FILE,
+        ])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .with_filtered("subdir", |c| {
+            c.assert_path_changes(&repo, "subdir")
+                .assert_path_changes(&repo, "subdir/")
+                .assert_path_changes(&repo, "subdir/.");
+        })
+        .with_filtered("subdir1", |c| {
+            c.assert_path_changes(&repo, "subdir1")
+                .assert_path_changes(&repo, "subdir1/")
+                .assert_path_changes(&repo, "subdir1/.");
+        })
+        .with_filtered(SUBDIR_MODIFIED_FILE, |c| {
+            c.assert_path_changes(&repo, SUBDIR_MODIFIED_FILE);
+        })
+        .with_filtered(SUBDIR1_MODIFIED_FILE, |c| {
+            c.assert_path_changes(&repo, SUBDIR1_MODIFIED_FILE);
+        });
 }
 
 #[cfg(all(unix, not(target_vendor = "apple")))]
 #[apply(all_backends)]
 #[rstest]
-fn path_changes_reports_non_utf8_untracked_file_in_aggregate_and_direct_file_query(
+fn query_changes_reports_non_utf8_untracked_file_in_aggregate_and_direct_file_query(
     backend: &dyn VcsBackend,
     worktree_with_non_utf8_untracked_file: PathInTempDir,
 ) {
-    let path = worktree_with_non_utf8_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let wt_path = non_utf8_untracked_file();
-
-    let changes = repo.path_changes(Path::new("")).unwrap().unwrap();
+    let worktree_path = worktree_with_non_utf8_untracked_file.path();
+    let repo = open_repo(backend, worktree_path);
+    let untracked_file = non_utf8_untracked_file();
     AssertRepositoryChanges::default()
-        .dirty([non_utf8_untracked_file()])
-        .assert(changes);
-
-    let changes = repo.path_changes(&wt_path).unwrap().unwrap();
-    AssertRepositoryChanges::default()
-        .dirty([wt_path])
-        .assert(changes);
+        .dirty([&untracked_file])
+        .assert_repository_changes(&repo)
+        .assert_path_changes(&repo, "")
+        .assert_path_changes(&repo, ".")
+        .assert_path_changes(&repo, &untracked_file);
 }
 
 #[apply(all_backends)]
@@ -1165,60 +1232,11 @@ fn path_changes_rejects_non_existent_path(
     backend: &dyn VcsBackend,
     worktree_with_untracked_subdir: PathInTempDir,
 ) {
-    let path = worktree_with_untracked_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
+    let worktree_path = worktree_with_untracked_subdir.path();
+    let repo = open_repo(backend, worktree_path);
     for query in ["xxx", "subdir/xxx.txt"] {
-        let err = repo.path_changes(Path::new(query)).unwrap_err();
-        assert_matches!(err, ModifyGuardError::PathNotFound { .. });
+        assert_path_changes_err_matches!(&repo, query, PathNotFound { .. });
     }
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_deleted_file_under_missing_directory_prefix(
-    backend: &dyn VcsBackend,
-    worktree_with_deleted_directory: PathInTempDir,
-) {
-    let path = worktree_with_deleted_directory.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo
-        .path_changes(Path::new("deleted_dir"))
-        .unwrap()
-        .unwrap();
-    AssertRepositoryChanges::default()
-        .dirty([DELETED_DIR_FILE])
-        .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_only_changes_under_queried_directory(
-    backend: &dyn VcsBackend,
-    worktree_with_root_and_subdir_changes: PathInTempDir,
-) {
-    let path = worktree_with_root_and_subdir_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.path_changes(Path::new("subdir")).unwrap().unwrap();
-    AssertRepositoryChanges::default()
-        .dirty([SUBDIR_MODIFIED_FILE, SUBDIR_UNTRACKED_FILE])
-        .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn path_changes_reports_only_queried_file(
-    backend: &dyn VcsBackend,
-    worktree_with_root_and_subdir_changes: PathInTempDir,
-) {
-    let path = worktree_with_root_and_subdir_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo
-        .path_changes(Path::new(SUBDIR_MODIFIED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertRepositoryChanges::default()
-        .dirty([SUBDIR_MODIFIED_FILE])
-        .assert(changes);
 }
 
 #[apply(all_backends)]
@@ -1227,201 +1245,28 @@ fn path_changes_treats_directory_path_as_literal_pathspec(
     backend: &dyn VcsBackend,
     worktree_with_literal_and_glob_matching_subdirs: PathInTempDir,
 ) {
-    let path = worktree_with_literal_and_glob_matching_subdirs.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let changes = repo.path_changes(Path::new("subdir[1]")).unwrap().unwrap();
+    let worktree_path = worktree_with_literal_and_glob_matching_subdirs.path();
+    let repo = open_repo(backend, worktree_path);
     AssertRepositoryChanges::default()
-        .dirty([LITERAL_SUBDIR_MODIFIED_FILE])
-        .assert(changes);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_returns_none_for_clean_file(
-    backend: &dyn VcsBackend,
-    clean_worktree: PathInTempDir,
-) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(CLEAN_FILE)).unwrap();
-    assert!(change.is_none());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_modified_file(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_file: PathInTempDir,
-) {
-    let path = worktree_with_modified_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(MODIFIED_FILE).dirty().assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_staged_file(
-    backend: &dyn VcsBackend,
-    worktree_with_staged_file: PathInTempDir,
-) {
-    let path = worktree_with_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(STAGED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(STAGED_FILE).staged().assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_modified_and_staged_file(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_and_staged_file: PathInTempDir,
-) {
-    let path = worktree_with_modified_and_staged_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(MODIFIED_AND_STAGED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
-        .dirty()
-        .staged()
-        .assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_deleted_file(
-    backend: &dyn VcsBackend,
-    worktree_with_deleted_file: PathInTempDir,
-) {
-    let path = worktree_with_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(DELETED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(DELETED_FILE).dirty().assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_index_deleted_file(
-    backend: &dyn VcsBackend,
-    worktree_with_index_deleted_file: PathInTempDir,
-) {
-    let path = worktree_with_index_deleted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(INDEX_DELETED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(INDEX_DELETED_FILE)
-        .staged()
-        .assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_untracked_file(
-    backend: &dyn VcsBackend,
-    worktree_with_untracked_file: PathInTempDir,
-) {
-    let path = worktree_with_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(UNTRACKED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(UNTRACKED_FILE).dirty().assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_conflicted_file_as_dirty_and_staged(
-    backend: &dyn VcsBackend,
-    worktree_with_conflicted_file: PathInTempDir,
-) {
-    let path = worktree_with_conflicted_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(CONFLICTED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(CONFLICTED_FILE)
-        .dirty()
-        .staged()
-        .assert(change);
-}
-
-#[cfg(all(unix, not(target_vendor = "apple")))]
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_non_utf8_untracked_file(
-    backend: &dyn VcsBackend,
-    worktree_with_non_utf8_untracked_file: PathInTempDir,
-) {
-    let path = worktree_with_non_utf8_untracked_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let wt_path = non_utf8_untracked_file();
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
-    AssertFileChange::new(wt_path).dirty().assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_returns_none_for_ignored_file(
-    backend: &dyn VcsBackend,
-    worktree_with_ignored_file: PathInTempDir,
-) {
-    let path = worktree_with_ignored_file.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(IGNORED_FILE)).unwrap();
-    assert!(change.is_none());
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_mixed_changes(
-    backend: &dyn VcsBackend,
-    worktree_with_mixed_changes: PathInTempDir,
-) {
-    let path = worktree_with_mixed_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-
-    let change = repo.file_change(Path::new(CLEAN_FILE)).unwrap();
-    assert!(change.is_none());
-
-    let change = repo.file_change(Path::new(MODIFIED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(MODIFIED_FILE).dirty().assert(change);
-
-    let change = repo.file_change(Path::new(STAGED_FILE)).unwrap().unwrap();
-    AssertFileChange::new(STAGED_FILE).staged().assert(change);
-
-    let change = repo
-        .file_change(Path::new(MODIFIED_AND_STAGED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(MODIFIED_AND_STAGED_FILE)
-        .dirty()
-        .staged()
-        .assert(change);
-
-    let change = repo
-        .file_change(Path::new(UNTRACKED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(UNTRACKED_FILE).dirty().assert(change);
-
-    let change = repo.file_change(Path::new(IGNORED_FILE)).unwrap();
-    assert!(change.is_none());
+        .dirty([
+            LITERAL_SUBDIR_MODIFIED_FILE,
+            GLOB_MATCHING_SUBDIR_MODIFIED_FILE,
+        ])
+        .assert_repository_changes(&repo)
+        .with_filtered("subdir[1]", |c| {
+            c.assert_path_changes(&repo, "subdir[1]");
+        });
 }
 
 #[cfg(unix)]
 #[apply(all_backends)]
 #[rstest]
 fn file_change_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink: PathInTempDir) {
-    let path = worktree_with_symlink.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(SYMLINK_FILE)).unwrap().unwrap();
-    AssertFileChange::new(CLEAN_FILE).dirty().assert(change);
+    let worktree_path = worktree_with_symlink.path();
+    let repo = open_repo(backend, worktree_path);
+    AssertFileChange::new(CLEAN_FILE)
+        .dirty()
+        .assert_file_change(&repo, SYMLINK_FILE);
 }
 
 #[apply(all_backends)]
@@ -1430,10 +1275,9 @@ fn file_change_returns_ambiguous_file_path_error_for_missing_directory_with_dele
     backend: &dyn VcsBackend,
     worktree_with_deleted_directory: PathInTempDir,
 ) {
-    let path = worktree_with_deleted_directory.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::AmbiguousFilePath { .. });
+    let worktree_path = worktree_with_deleted_directory.path();
+    let repo = open_repo(backend, worktree_path);
+    assert_file_change_err_matches!(&repo, "deleted_dir", AmbiguousFilePath { .. });
 }
 
 #[apply(all_backends)]
@@ -1442,21 +1286,17 @@ fn file_change_returns_ambiguous_file_path_error_for_missing_directory_with_mult
     backend: &dyn VcsBackend,
     worktree_with_deleted_directory_multiple_files: PathInTempDir,
 ) {
-    let path = worktree_with_deleted_directory_multiple_files.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::AmbiguousFilePath { .. });
+    let worktree_path = worktree_with_deleted_directory_multiple_files.path();
+    let repo = open_repo(backend, worktree_path);
+    assert_file_change_err_matches!(&repo, "deleted_dir", AmbiguousFilePath { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
 fn file_change_rejects_non_existent_file(backend: &dyn VcsBackend, clean_worktree: PathInTempDir) {
-    let path = clean_worktree.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo
-        .file_change(Path::new("non_existent_file.txt"))
-        .unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotFound { .. });
+    let worktree_path = clean_worktree.path();
+    let repo = open_repo(backend, worktree_path);
+    assert_file_change_err_matches!(&repo, "non_existent_file.txt", PathNotFound { .. });
 }
 
 #[apply(all_backends)]
@@ -1465,45 +1305,28 @@ fn file_change_returns_canonicalized_path(
     backend: &dyn VcsBackend,
     worktree_with_modified_subdir: PathInTempDir,
 ) {
-    let repo_path = worktree_with_modified_subdir.path();
-    let dir_name = repo_path.file_name().unwrap().to_str().unwrap();
-    let repo = backend.open(repo_path).unwrap().unwrap();
+    let worktree_path = worktree_with_modified_subdir.path();
+    let dir_name = worktree_path.file_name().unwrap().to_str().unwrap();
+    let repo = open_repo(backend, worktree_path);
 
-    let wt_path = PathBuf::from(format!("subdir//{MODIFIED_FILE}"));
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
-
-    let wt_path = PathBuf::from(format!("./{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
+        .assert_file_change(&repo, format!("subdir//{MODIFIED_FILE}"));
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
-
-    let wt_path = PathBuf::from(format!("subdir/./{MODIFIED_FILE}"));
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
+        .assert_file_change(&repo, format!("./{SUBDIR_MODIFIED_FILE}"));
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
-
-    let wt_path = PathBuf::from(format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
+        .assert_file_change(&repo, format!("subdir/./{MODIFIED_FILE}"));
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
-
-    let wt_path = PathBuf::from(format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
-    let change = repo.file_change(&wt_path).unwrap().unwrap();
+        .assert_file_change(&repo, format!("../{dir_name}/{SUBDIR_MODIFIED_FILE}"));
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
-
-    let wt_path = Path::new(SUBDIR_MODIFIED_FILE);
-    let change = repo.file_change(wt_path).unwrap().unwrap();
+        .assert_file_change(&repo, format!("subdir/../{SUBDIR_MODIFIED_FILE}"));
     AssertFileChange::new(SUBDIR_MODIFIED_FILE)
         .dirty()
-        .assert(change);
+        .assert_file_change(&repo, SUBDIR_MODIFIED_FILE);
 }
 
 #[apply(all_backends)]
@@ -1512,45 +1335,9 @@ fn file_change_rejects_empty_path(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-
-    let err = repo.file_change(Path::new("")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotAFile { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_modified_file_in_subdir(
-    backend: &dyn VcsBackend,
-    worktree_with_modified_subdir: PathInTempDir,
-) {
-    let path = worktree_with_modified_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(SUBDIR_MODIFIED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(SUBDIR_MODIFIED_FILE)
-        .dirty()
-        .assert(change);
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_reports_untracked_file_in_subdir(
-    backend: &dyn VcsBackend,
-    worktree_with_untracked_subdir: PathInTempDir,
-) {
-    let path = worktree_with_untracked_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo
-        .file_change(Path::new(SUBDIR_UNTRACKED_FILE))
-        .unwrap()
-        .unwrap();
-    AssertFileChange::new(SUBDIR_UNTRACKED_FILE)
-        .dirty()
-        .assert(change);
+    let worktree_path = clean_worktree_with_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    assert_file_change_err_matches!(&repo, "", PathNotAFile { .. });
 }
 
 #[apply(all_backends)]
@@ -1559,22 +1346,9 @@ fn file_change_rejects_directory_path(
     backend: &dyn VcsBackend,
     clean_worktree_with_subdir: PathInTempDir,
 ) {
-    let path = clean_worktree_with_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let err = repo.file_change(Path::new("subdir")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::PathNotAFile { .. });
-}
-
-#[apply(all_backends)]
-#[rstest]
-fn file_change_returns_none_for_file_in_ignored_directory_path(
-    backend: &dyn VcsBackend,
-    worktree_with_ignored_subdir: PathInTempDir,
-) {
-    let path = worktree_with_ignored_subdir.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let change = repo.file_change(Path::new(SUBDIR_IGNORED_FILE)).unwrap();
-    assert!(change.is_none());
+    let worktree_path = clean_worktree_with_subdir.path();
+    let repo = open_repo(backend, worktree_path);
+    assert_file_change_err_matches!(&repo, "subdir", PathNotAFile { .. });
 }
 
 #[apply(all_backends)]
@@ -1583,9 +1357,9 @@ fn repository_changes_and_file_change_agree_for_reported_paths(
     backend: &dyn VcsBackend,
     worktree_with_mixed_changes: PathInTempDir,
 ) {
-    let path = worktree_with_mixed_changes.path();
-    let repo = backend.open(path).unwrap().unwrap();
-    let repo_changes = repo.repository_changes().unwrap().unwrap();
+    let worktree_path = worktree_with_mixed_changes.path();
+    let repo = open_repo(backend, worktree_path);
+    let repo_changes = assert_repository_changes_ok(&repo).unwrap();
 
     let wt_paths = [
         CLEAN_FILE,
@@ -1612,9 +1386,7 @@ fn repository_changes_and_file_change_agree_for_reported_paths(
 
     for wt_path in &wt_paths {
         let wt_path = Path::new(wt_path);
-        let Some(file_change) = repo.file_change(wt_path).unwrap() else {
-            continue;
-        };
+        let file_change = assert_file_change_ok(&repo, wt_path);
         let mut expected = AssertFileChange::new(wt_path);
         if repo_dirty_wt_paths.contains(&wt_path) {
             dirty_count += 1;

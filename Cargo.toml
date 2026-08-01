@@ -59,7 +59,7 @@ maintenance = { status = "actively-developed" }
 default = ["git-default"]
 
 # Enable the default Git backend implementation.
-git-default = ["git-libgit2"]
+git-default = ["git-gix"]
 
 # Enable the gix Git backend implementation.
 git-gix = ["dep:gix"]
@@ -75,6 +75,9 @@ git-cli = []
 [lints.clippy]
 cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+
+# Cargo group
+multiple_crate_versions = "allow"
 
 # Restriction group
 allow_attributes = "warn"

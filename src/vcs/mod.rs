@@ -30,10 +30,10 @@ trait VcsBackend: Debug + Send + Sync {
 }
 
 static BACKENDS: &[&dyn VcsBackend] = &[
-    #[cfg(feature = "git-libgit2")]
-    &git_libgit2::BACKEND,
     #[cfg(feature = "git-gix")]
     &git_gix::BACKEND,
+    #[cfg(feature = "git-libgit2")]
+    &git_libgit2::BACKEND,
     #[cfg(feature = "git-cli")]
     &git_cli::BACKEND,
 ];

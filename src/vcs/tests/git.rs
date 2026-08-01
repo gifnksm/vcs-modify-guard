@@ -24,12 +24,17 @@ where
     P: AsRef<Path>,
 {
     let mut cmd = assert_cmd::Command::new("git");
-    cmd.current_dir(current_dir).envs([
-        ("GIT_AUTHOR_NAME", "Test User"),
-        ("GIT_AUTHOR_EMAIL", "test@example.com"),
-        ("GIT_COMMITTER_NAME", "Test User"),
-        ("GIT_COMMITTER_EMAIL", "test@example.com"),
-    ]);
+    cmd.current_dir(current_dir)
+        .envs([
+            ("GIT_AUTHOR_NAME", "Test User"),
+            ("GIT_AUTHOR_EMAIL", "test@example.com"),
+            ("GIT_COMMITTER_NAME", "Test User"),
+            ("GIT_COMMITTER_EMAIL", "test@example.com"),
+        ])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_COMMON_DIR");
     cmd
 }
 
@@ -98,13 +103,8 @@ fn git_absolute_git_dir<P>(current_dir: P) -> PathBuf
 where
     P: AsRef<Path>,
 {
-    let output = std::process::Command::new("git")
-        .current_dir(current_dir)
+    let output = git_command(current_dir)
         .args(["rev-parse", "--absolute-git-dir"])
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
-        .env_remove("GIT_INDEX_FILE")
-        .env_remove("GIT_COMMON_DIR")
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -555,8 +555,8 @@ fn inaccessible_path() -> PathInTempDir {
 
 #[template]
 #[rstest]
-#[cfg_attr(feature = "git-libgit2", case::libgit2(&vcs::git_libgit2::BACKEND))]
 #[cfg_attr(feature = "git-gix", case::gix(&vcs::git_gix::BACKEND))]
+#[cfg_attr(feature = "git-libgit2", case::libgit2(&vcs::git_libgit2::BACKEND))]
 #[cfg_attr(feature = "git-cli", case::cli(&vcs::git_cli::BACKEND))]
 fn all_backends(#[case] backend: &dyn VcsBackend) {}
 

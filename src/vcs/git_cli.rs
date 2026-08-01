@@ -13,7 +13,7 @@ use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use crate::{
     ModifyGuardError, error,
     repository::{FileChange, RepositoryChanges},
-    util::{self, NormalizedPath},
+    util::{self, WorktreeRelativePath},
     vcs::VcsBackend,
 };
 
@@ -68,15 +68,6 @@ pub enum GitCliBackendError {
     InvalidRevParse {
         /// The invalid output from the `git rev-parse` command.
         output: Vec<u8>,
-    },
-    /// A file query was ambiguous and matched an unexpected path.
-    #[snafu(display(
-        "git file query for {} was ambiguous",
-        query.display(),
-    ))]
-    AmbiguousFilePath {
-        /// The worktree-relative path requested by the file query.
-        query: PathBuf,
     },
     /// A path was expected to have a parent directory, but it did not.
     #[snafu(display("path has no parent directory: {}", git_dir.display()))]
@@ -180,19 +171,19 @@ impl VcsRepository for GitCliRepository {
     }
 
     fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         let file_changes = self.collect_changes(Some(&wt_path))?;
         Ok(RepositoryChanges::new(file_changes))
     }
 
     fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         match &wt_path {
-            NormalizedPath::Existing(wt_path) => {
+            WorktreeRelativePath::Existing(wt_path) => {
                 let fs_path = self.worktree.join(wt_path);
                 util::ensure_path_is_file(&fs_path)?;
             }
-            NormalizedPath::Missing(_) => {}
+            WorktreeRelativePath::Missing(_) => {}
         }
         let file_changes = self.collect_changes(Some(&wt_path))?;
 
@@ -202,11 +193,7 @@ impl VcsRepository for GitCliRepository {
             // and may return changes below it. `file_change()` needs file semantics like
             // `git2::Repository::status_file`, so accept only an exact path match.
             [change] if change.wt_path() == wt_path.as_path() => Ok(Some(change.clone())),
-            [..] => Err(AmbiguousFilePathSnafu {
-                query: wt_path.as_path().to_path_buf(),
-            }
-            .build()
-            .into()),
+            [..] => Err(error::AmbiguousFilePathSnafu { wt_path }.build()),
         }
     }
 }
@@ -214,7 +201,7 @@ impl VcsRepository for GitCliRepository {
 impl GitCliRepository {
     fn collect_changes(
         &self,
-        wt_path: Option<&NormalizedPath>,
+        wt_path: Option<&WorktreeRelativePath>,
     ) -> Result<Vec<FileChange>, ModifyGuardError> {
         let pathspec = wt_path
             .as_ref()
@@ -240,7 +227,7 @@ impl GitCliRepository {
             .peekable()
             .collect::<Vec<_>>();
         if statuses.is_empty()
-            && let Some(NormalizedPath::Missing(wt_path)) = &wt_path
+            && let Some(WorktreeRelativePath::Missing(wt_path)) = &wt_path
         {
             return Err(error::PathNotFoundSnafu { path: wt_path }.build());
         }

@@ -1426,26 +1426,26 @@ fn file_change_resolves_symlink(backend: &dyn VcsBackend, worktree_with_symlink:
 
 #[apply(all_backends)]
 #[rstest]
-fn file_change_returns_backend_error_for_missing_directory_with_deleted_file_under_it(
+fn file_change_returns_ambiguous_file_path_error_for_missing_directory_with_deleted_file_under_it(
     backend: &dyn VcsBackend,
     worktree_with_deleted_directory: PathInTempDir,
 ) {
     let path = worktree_with_deleted_directory.path();
     let repo = backend.open(path).unwrap().unwrap();
     let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::Backend { .. });
+    assert_matches!(err, ModifyGuardError::AmbiguousFilePath { .. });
 }
 
 #[apply(all_backends)]
 #[rstest]
-fn file_change_returns_backend_error_for_missing_directory_with_multiple_deleted_files_under_it(
+fn file_change_returns_ambiguous_file_path_error_for_missing_directory_with_multiple_deleted_files_under_it(
     backend: &dyn VcsBackend,
     worktree_with_deleted_directory_multiple_files: PathInTempDir,
 ) {
     let path = worktree_with_deleted_directory_multiple_files.path();
     let repo = backend.open(path).unwrap().unwrap();
     let err = repo.file_change(Path::new("deleted_dir")).unwrap_err();
-    assert_matches!(err, ModifyGuardError::Backend { .. });
+    assert_matches!(err, ModifyGuardError::AmbiguousFilePath { .. });
 }
 
 #[apply(all_backends)]

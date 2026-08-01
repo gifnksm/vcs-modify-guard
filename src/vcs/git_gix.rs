@@ -12,7 +12,7 @@ use crate::{
     ModifyGuardError,
     error::{self},
     repository::{FileChange, RepositoryChanges},
-    util::{self, NormalizedPath},
+    util::{self, WorktreeRelativePath},
     vcs::VcsBackend,
 };
 
@@ -64,15 +64,6 @@ pub enum GixBackendError {
         worktree: PathBuf,
         /// The underlying error from `gix`.
         source: gix::status::iter::Error,
-    },
-    /// A file query was ambiguous and matched an unexpected path.
-    #[snafu(display(
-        "git file query for {} was ambiguous",
-        query.display()
-    ))]
-    AmbiguousFilePath {
-        /// The worktree-relative path requested by the file query.
-        query: PathBuf,
     },
 }
 
@@ -156,7 +147,7 @@ impl VcsRepository for GixRepository {
     }
 
     fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         if wt_path.is_empty() {
             return self.repository_changes();
         }
@@ -164,7 +155,7 @@ impl VcsRepository for GixRepository {
         let changes = self.collect_changes(Some(&wt_path))?;
 
         if changes.is_empty() {
-            if matches!(wt_path, NormalizedPath::Missing(_)) {
+            if matches!(wt_path, WorktreeRelativePath::Missing(_)) {
                 return Err(error::PathNotFoundSnafu {
                     path: wt_path.as_path(),
                 }
@@ -177,26 +168,26 @@ impl VcsRepository for GixRepository {
     }
 
     fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         match &wt_path {
-            NormalizedPath::Existing(wt_path) => {
+            WorktreeRelativePath::Existing(wt_path) => {
                 let fs_path = self.worktree.join(wt_path);
                 util::ensure_path_is_file(&fs_path)?;
             }
-            NormalizedPath::Missing(_) => {}
+            WorktreeRelativePath::Missing(_) => {}
         }
 
         let changes = self.collect_changes(Some(&wt_path))?;
 
         match changes.as_slice() {
             [] => match wt_path {
-                NormalizedPath::Existing(_) => Ok(None),
-                NormalizedPath::Missing(_) => {
+                WorktreeRelativePath::Existing(_) => Ok(None),
+                WorktreeRelativePath::Missing(_) => {
                     Err(error::PathNotFoundSnafu { path: wt_path }.build())
                 }
             },
             [change] if change.wt_path() == wt_path.as_path() => Ok(Some(change.clone())),
-            [..] => Err(AmbiguousFilePathSnafu { query: wt_path }.build().into()),
+            [..] => Err(error::AmbiguousFilePathSnafu { wt_path }.build()),
         }
     }
 }
@@ -204,7 +195,7 @@ impl VcsRepository for GixRepository {
 impl GixRepository {
     fn collect_changes(
         &self,
-        wt_path: Option<&NormalizedPath>,
+        wt_path: Option<&WorktreeRelativePath>,
     ) -> Result<Vec<FileChange>, ModifyGuardError> {
         let worktree = &self.worktree;
         let status_platform = self

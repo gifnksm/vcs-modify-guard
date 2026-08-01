@@ -64,9 +64,18 @@ pub enum ModifyGuardError {
         "path does not resolve to a valid path within the repository worktree: {}",
         path.display()
     ))]
-    InvalidWorktreeRelativePath {
+    ResolveAsWorktreeRelativePath {
         /// The path that was rejected.
         path: PathBuf,
+    },
+    /// The specified path does not resolve to a single file within the repository worktree.
+    #[snafu(display(
+        "path does not resolve to a single file within the repository worktree: {}",
+        wt_path.display()
+    ))]
+    AmbiguousFilePath {
+        /// The path that was rejected.
+        wt_path: PathBuf,
     },
     /// VCS backend error.
     #[snafu(transparent)]

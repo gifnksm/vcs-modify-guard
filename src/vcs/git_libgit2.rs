@@ -9,7 +9,7 @@ use super::VcsRepository;
 use crate::{
     error::{self, ModifyGuardError},
     repository::{FileChange, RepositoryChanges},
-    util::{self, NormalizedPath},
+    util::{self, WorktreeRelativePath},
     vcs::VcsBackend,
 };
 
@@ -123,14 +123,14 @@ impl VcsRepository for Libgit2Repository {
     }
 
     fn path_changes(&self, wt_path: &Path) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         let is_dir = match &wt_path {
-            NormalizedPath::Existing(wt_path) => {
+            WorktreeRelativePath::Existing(wt_path) => {
                 let fs_path = self.worktree.join(wt_path);
                 let metadata = util::read_path_metadata(&fs_path)?;
                 metadata.is_dir()
             }
-            NormalizedPath::Missing(_) => true,
+            WorktreeRelativePath::Missing(_) => true,
         };
         if wt_path.as_path().as_os_str().is_empty() {
             return self.collect_dir_changes(None);
@@ -143,13 +143,13 @@ impl VcsRepository for Libgit2Repository {
     }
 
     fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError> {
-        let wt_path = util::normalize_worktree_path(&self.worktree, wt_path)?;
+        let wt_path = WorktreeRelativePath::from_wt_path(&self.worktree, wt_path)?;
         match &wt_path {
-            NormalizedPath::Existing(wt_path) => {
+            WorktreeRelativePath::Existing(wt_path) => {
                 let fs_path = self.worktree.join(wt_path);
                 util::ensure_path_is_file(&fs_path)?;
             }
-            NormalizedPath::Missing(_) => {}
+            WorktreeRelativePath::Missing(_) => {}
         }
         self.query_file_change(wt_path)
     }
@@ -158,7 +158,7 @@ impl VcsRepository for Libgit2Repository {
 impl Libgit2Repository {
     fn collect_dir_changes(
         &self,
-        wt_path: Option<&NormalizedPath>,
+        wt_path: Option<&WorktreeRelativePath>,
     ) -> Result<Option<RepositoryChanges>, ModifyGuardError> {
         let mut repo_opts = git2::StatusOptions::new();
         if let Some(wt_path) = wt_path {
@@ -185,7 +185,7 @@ impl Libgit2Repository {
             .peekable();
 
         if file_entries.peek().is_none()
-            && let Some(NormalizedPath::Missing(wt_path)) = &wt_path
+            && let Some(WorktreeRelativePath::Missing(wt_path)) = &wt_path
         {
             return Err(error::PathNotFoundSnafu { path: wt_path }.build());
         }
@@ -195,13 +195,16 @@ impl Libgit2Repository {
 
     fn query_file_change(
         &self,
-        wt_path: NormalizedPath,
+        wt_path: WorktreeRelativePath,
     ) -> Result<Option<FileChange>, ModifyGuardError> {
         let status = match self.repo.status_file(wt_path.as_path()) {
             Ok(status) => status,
+            Err(source) if source.code() == git2::ErrorCode::Ambiguous => {
+                return Err(error::AmbiguousFilePathSnafu { wt_path }.build());
+            }
             Err(source) if source.code() == git2::ErrorCode::NotFound => {
                 match &wt_path {
-                    NormalizedPath::Existing(wt_path) => {
+                    WorktreeRelativePath::Existing(wt_path) => {
                         // At this point `wt_path` has already been resolved to an
                         // existing file within the worktree, so `NotFound` means the
                         // file is untracked by Git rather than missing from disk.
@@ -211,7 +214,7 @@ impl Libgit2Repository {
                         }
                         .build(wt_path));
                     }
-                    NormalizedPath::Missing(wt_path) => {
+                    WorktreeRelativePath::Missing(wt_path) => {
                         return Err(error::PathNotFoundSnafu { path: wt_path }.build());
                     }
                 }

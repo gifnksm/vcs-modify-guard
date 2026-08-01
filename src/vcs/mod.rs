@@ -3,8 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use snafu::OptionExt as _;
-
 #[cfg(feature = "git-cli")]
 pub use self::git_cli::GitCliBackendError;
 #[cfg(feature = "git-gix")]
@@ -14,7 +12,7 @@ pub use self::git_libgit2::Libgit2BackendError;
 use crate::{
     error::{self, ModifyGuardError},
     repository::{FileChange, RepositoryChanges},
-    util::{self, NormalizedPath},
+    util::WorktreeRelativePath,
 };
 
 #[cfg(feature = "git-cli")]
@@ -65,13 +63,8 @@ pub(crate) trait VcsRepository: Debug {
     fn file_change(&self, wt_path: &Path) -> Result<Option<FileChange>, ModifyGuardError>;
 
     fn resolve_path(&self, path: &Path) -> Result<PathBuf, ModifyGuardError> {
-        let worktree_path = util::canonicalize_path(self.worktree())?;
-        let normalized = NormalizedPath::new(path)?;
-        let normalized_relative = normalized
-            .strip_prefix(&worktree_path)
-            .ok()
-            .context(error::InvalidWorktreeRelativePathSnafu { path })?;
-        Ok(normalized_relative.into())
+        let wt_path = WorktreeRelativePath::from_path(self.worktree(), path)?;
+        Ok(wt_path.into())
     }
 }
 

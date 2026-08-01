@@ -49,7 +49,7 @@ where
 }
 
 #[must_use]
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct AssertRepositoryChanges {
     files: BTreeMap<PathBuf, AssertFileChange>,
     dirty: BTreeSet<PathBuf>,
@@ -124,15 +124,84 @@ impl AssertRepositoryChanges {
         self
     }
 
+    pub(crate) fn filtered<P>(&self, prefix: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        let prefix = prefix.as_ref();
+        let files = self
+            .files
+            .iter()
+            .filter(|(wt_path, _)| wt_path.starts_with(prefix))
+            .map(|(wt_path, file)| (wt_path.clone(), file.clone()))
+            .collect();
+        let dirty = self
+            .dirty
+            .iter()
+            .filter(|wt_path| wt_path.starts_with(prefix))
+            .cloned()
+            .collect();
+        let staged = self
+            .staged
+            .iter()
+            .filter(|wt_path| wt_path.starts_with(prefix))
+            .cloned()
+            .collect();
+        Self {
+            files,
+            dirty,
+            staged,
+        }
+    }
+
+    pub(crate) fn with_filtered<P, F>(&self, prefix: P, f: F) -> &Self
+    where
+        P: AsRef<Path>,
+        F: FnOnce(Self),
+    {
+        let filtered = self.filtered(prefix);
+        f(filtered);
+        self
+    }
+
+    pub(crate) fn file_change<P>(&self, path: P) -> AssertFileChange
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        self.files
+            .get(path)
+            .cloned()
+            .unwrap_or_else(|| AssertFileChange::new(path))
+    }
+
+    pub(crate) fn with_file_change<P, F>(&self, path: P, f: F) -> &Self
+    where
+        P: AsRef<Path>,
+        F: FnOnce(AssertFileChange),
+    {
+        let change = self.file_change(path);
+        f(change);
+        self
+    }
+
     #[track_caller]
-    pub(crate) fn assert(self, actual: RepositoryChanges) {
-        let actual = Self::from(actual);
-        assert_eq!(actual, self);
+    pub(crate) fn assert(&self, actual: Option<RepositoryChanges>) -> &Self {
+        match actual {
+            Some(actual) => {
+                assert!(actual.has_dirty_files() || actual.has_staged_files());
+                assert_eq!(Self::from(actual), *self);
+            }
+            None => {
+                assert!(self.dirty.is_empty() && self.staged.is_empty());
+            }
+        }
+        self
     }
 }
 
 #[must_use]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AssertFileChange {
     wt_path: PathBuf,
     dirty: bool,
@@ -177,9 +246,17 @@ impl AssertFileChange {
     }
 
     #[track_caller]
-    pub(crate) fn assert(self, actual: FileChange) {
-        let actual = Self::from(actual);
-        assert_eq!(actual, self);
+    pub(crate) fn assert(&self, actual: Option<FileChange>) -> &Self {
+        match actual {
+            Some(actual) => {
+                assert!(actual.is_dirty() || actual.is_staged());
+                assert_eq!(Self::from(actual), *self);
+            }
+            None => {
+                assert!(!self.dirty && !self.staged);
+            }
+        }
+        self
     }
 }
 

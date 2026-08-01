@@ -7,6 +7,8 @@ use snafu::OptionExt as _;
 
 #[cfg(feature = "git-cli")]
 pub use self::git_cli::GitCliBackendError;
+#[cfg(feature = "git-gix")]
+pub use self::git_gix::GixBackendError;
 #[cfg(feature = "git-libgit2")]
 pub use self::git_libgit2::Libgit2BackendError;
 use crate::{
@@ -17,6 +19,8 @@ use crate::{
 
 #[cfg(feature = "git-cli")]
 mod git_cli;
+#[cfg(feature = "git-gix")]
+mod git_gix;
 #[cfg(feature = "git-libgit2")]
 mod git_libgit2;
 #[cfg(test)]
@@ -30,6 +34,8 @@ trait VcsBackend: Debug + Send + Sync {
 static BACKENDS: &[&dyn VcsBackend] = &[
     #[cfg(feature = "git-libgit2")]
     &git_libgit2::BACKEND,
+    #[cfg(feature = "git-gix")]
+    &git_gix::BACKEND,
     #[cfg(feature = "git-cli")]
     &git_cli::BACKEND,
 ];

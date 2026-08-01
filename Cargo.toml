@@ -37,6 +37,12 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 [dependencies]
 dunce = "1.0.5"
 git2 = { version = "0.21.0", optional = true }
+gix = {
+  version = "0.86.0",
+  default-features = false,
+  features = ["sha1", "status"],
+  optional = true
+}
 snafu = "0.9.2"
 
 [dev-dependencies]
@@ -55,6 +61,8 @@ default = ["git-default"]
 # Enable the default Git backend implementation.
 git-default = ["git-libgit2"]
 
+# Enable the gix Git backend implementation.
+git-gix = ["dep:gix"]
 # Enable the libgit2 Git backend implementation.
 git-libgit2 = ["dep:git2"]
 # Forward git2's vendored-libgit2 feature to prefer linking the vendored

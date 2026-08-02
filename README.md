@@ -56,7 +56,11 @@ desired backend feature(s) explicitly:
 
 ````toml
 [dependencies]
-vcs-modify-guard = { version = "0.1.0", default-features = false, features = ["git-libgit2"] }
+vcs-modify-guard = {
+  version = "0.1.0",
+  default-features = false,
+  features = ["git-libgit2"]
+}
 ````
 
 If multiple backends are enabled, they are tried in this fixed priority
@@ -136,15 +140,6 @@ See the `allow_options` example for a complete command-line application.
 If you need custom policy logic instead of the built-in `--allow-*`
 behavior, see the [`repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/index.html) module for direct repository discovery and
 change query APIs.
-
-## Usage
-
-Add this to your `Cargo.toml`:
-
-````toml
-[dependencies]
-vcs-modify-guard = "0.1.0"
-````
 <!-- cargo-sync-rdme ]] -->
 
 ## Minimum supported Rust version (MSRV)

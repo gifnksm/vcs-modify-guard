@@ -42,7 +42,11 @@
 //!
 //! ```toml
 //! [dependencies]
-//! vcs-modify-guard = { version = "0.1.0", default-features = false, features = ["git-libgit2"] }
+//! vcs-modify-guard = {
+//!   version = "0.1.0",
+//!   default-features = false,
+//!   features = ["git-libgit2"]
+//! }
 //! ```
 //!
 //! If multiple backends are enabled, they are tried in this fixed priority
@@ -122,15 +126,6 @@
 //! If you need custom policy logic instead of the built-in `--allow-*`
 //! behavior, see the [`repository`] module for direct repository discovery and
 //! change query APIs.
-//!
-//! # Usage
-//!
-//! Add this to your `Cargo.toml`:
-//!
-//! ```toml
-//! [dependencies]
-//! vcs-modify-guard = "0.1.0"
-//! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(html_root_url = "https://docs.rs/vcs-modify-guard/0.1.0")]

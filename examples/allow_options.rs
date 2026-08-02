@@ -74,6 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 return Err("blocked by staged changes".into());
             }
+            _ => {
+                eprintln!("The target path has unsafe modifications under it.");
+                return Err("blocked by unsafe modifications".into());
+            }
         },
     }
 

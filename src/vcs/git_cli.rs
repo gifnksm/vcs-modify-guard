@@ -10,14 +10,13 @@ use std::{
 
 use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 
+use super::VcsRepository;
 use crate::{
     ModifyGuardError, error,
     repository::{FileChange, RepositoryChanges},
     util::{self, WorktreeRelativePath},
     vcs::VcsBackend,
 };
-
-use super::VcsRepository;
 
 pub(super) const BACKEND: GitCliBackend = GitCliBackend;
 

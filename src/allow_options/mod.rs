@@ -75,6 +75,10 @@ mod tests;
 ///             }
 ///             return Err("blocked by staged changes".into());
 ///         }
+///         _ => {
+///             eprintln!("The target path has unsafe modifications under it.");
+///             return Err("blocked by unsafe modifications".into());
+///         }
 ///     },
 /// }
 /// # Ok(())
@@ -343,12 +347,12 @@ pub enum ModificationSafety {
 /// The reason modification of the queried target is considered unsafe under
 /// the current `--allow-*` policy.
 ///
-/// This type explains why [`ModificationSafety::Unsafe`] was returned.
+// Use `#[doc = ...]` instead of a regular doc comment here because the
+// crate's `clippy::unnecessary_safety_comment` lint false-positively flags
+// this text in the usual `///` form.
+#[doc = "This type explains why [`ModificationSafety::Unsafe`] was returned."]
 #[derive(Debug)]
-#[expect(
-    clippy::exhaustive_enums,
-    reason = "Callers should exhaustively match the current outcomes; adding a new variant is an intentional breaking API change"
-)]
+#[non_exhaustive]
 pub enum UnsafeModificationReason {
     /// Modification is considered unsafe because no supported VCS repository
     /// was found for the queried target.

@@ -19,6 +19,11 @@ working tree.
 `--allow-staged`, and `--allow-no-vcs` style checks before they modify
 files.
 
+Currently, this crate supports Git repositories. Backend selection is
+controlled by Cargo features; see [Feature flags](#feature-flags).
+
+## API overview
+
 This crate provides two layers of API:
 
 * [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html) is the main entry point. It implements `cargo fix`-style
@@ -32,6 +37,38 @@ This crate provides two layers of API:
 Most users should start with [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html). Reach for
 [`repository::Repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html) only when you need custom behavior beyond the
 built-in `--allow-*` semantics.
+
+## Feature flags
+
+This crate currently supports Git repositories via selectable Git
+backends.
+
+### Backend selection features
+
+* `git-default` (enabled by default) enables the default Git backend.
+  Currently, this enables `git-gix`.
+* `git-gix` enables the `gix` backend.
+* `git-libgit2` enables the `libgit2` backend.
+* `git-cli` enables the Git CLI backend.
+
+To opt out of the default backend, disable default features and enable the
+desired backend feature(s) explicitly:
+
+````toml
+[dependencies]
+vcs-modify-guard = { version = "0.1.0", default-features = false, features = ["git-libgit2"] }
+````
+
+If multiple backends are enabled, they are tried in this fixed priority
+order: `gix`, then `libgit2`, then the Git CLI.
+
+If no backend selection features are enabled, repository discovery reports
+that no supported repository was found.
+
+### Backend configuration features
+
+* `vendored-libgit2` forwards to `git2`’s `vendored-libgit2` feature when
+  `git-libgit2` is enabled.
 
 ## Example
 
@@ -82,6 +119,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             UnsafeModificationReason::Staged { .. } => {
                 return Err("blocked by staged changes".into());
             }
+            _ => {
+                return Err("blocked by unsafe modifications".into());
+            }
         },
     }
 
@@ -110,7 +150,6 @@ vcs-modify-guard = "0.1.0"
 ## Minimum supported Rust version (MSRV)
 
 The minimum supported Rust version is **Rust 1.96.0**.
-At least the last 3 versions of stable Rust are supported at any given time.
 
 While a crate is a pre-release status (0.x.x) it may have its MSRV bumped in a patch release.
 Once a crate has reached 1.x, any MSRV bump will be accompanied by a new minor version.

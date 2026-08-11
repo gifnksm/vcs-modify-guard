@@ -95,7 +95,6 @@
 //! change query APIs.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc(html_root_url = "https://docs.rs/vcs-modify-guard/0.1.0")]
 
 #[cfg_attr(
     not(vcs_backend_enabled),

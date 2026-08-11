@@ -26,16 +26,16 @@ controlled by Cargo features; see [Feature flags](#feature-flags).
 
 This crate provides two layers of API:
 
-* [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html) is the main entry point. It implements `cargo fix`-style
-  safe-to-modify checks and returns a [`ModificationSafety`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/enum.ModificationSafety.html) describing whether
+* [`AllowOptions`] is the main entry point. It implements `cargo fix`-style
+  safe-to-modify checks and returns a [`ModificationSafety`] describing whether
   modification is safe. By default, checks are scoped to the queried path.
-* [`repository::Repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html) is a lower-level API for tools that need to
+* [`repository::Repository`] is a lower-level API for tools that need to
   discover a repository and inspect whether files are dirty and/or staged to
   implement their own policy. Dirty files include modified tracked files and
   untracked files.
 
-Most users should start with [`AllowOptions`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html). Reach for
-[`repository::Repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html) only when you need custom behavior beyond the
+Most users should start with [`AllowOptions`]. Reach for
+[`repository::Repository`] only when you need custom behavior beyond the
 built-in `--allow-*` semantics.
 
 ## Feature flags
@@ -137,8 +137,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 See the `allow_options` example for a complete command-line application.
 
 If you need custom policy logic instead of the built-in `--allow-*`
-behavior, see the [`repository`](https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/index.html) module for direct repository discovery and
+behavior, see the [`repository`] module for direct repository discovery and
 change query APIs.
+
+[`AllowOptions`]: https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/struct.AllowOptions.html "struct vcs_modify_guard::allow_options::AllowOptions"
+[`ModificationSafety`]: https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/allow_options/enum.ModificationSafety.html "enum vcs_modify_guard::allow_options::ModificationSafety"
+[`repository::Repository`]: https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/struct.Repository.html "struct vcs_modify_guard::repository::Repository"
+[`repository`]: https://docs.rs/vcs-modify-guard/0.1.0/vcs_modify_guard/repository/index.html "module vcs_modify_guard::repository"
 <!-- cargo-sync-rdme ]] -->
 
 ## Minimum supported Rust version (MSRV)

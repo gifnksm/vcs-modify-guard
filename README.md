@@ -45,11 +45,10 @@ backends.
 
 ### Backend selection features
 
-* `git-default` (enabled by default) enables the default Git backend.
-  Currently, this enables `git-gix`.
-* `git-gix` enables the `gix` backend.
-* `git-libgit2` enables the `libgit2` backend.
-* `git-cli` enables the Git CLI backend.
+* **`git-default`** *(enabled by default)* —  Enables the default Git backend. Currently, this enables `git-gix`.
+* **`git-cli`** —  Enables the Git CLI backend.
+* **`git-gix`** *(enabled by default)* —  Enables the `gix` Git backend.
+* **`git-libgit2`** —  Enables the `libgit2` Git backend.
 
 To opt out of the default backend, disable default features and enable the
 desired backend feature(s) explicitly:
@@ -71,8 +70,8 @@ that no supported repository was found.
 
 ### Backend configuration features
 
-* `vendored-libgit2` forwards to `git2`’s `vendored-libgit2` feature when
-  `git-libgit2` is enabled.
+* **`vendored-libgit2`** —  Enables vendored `libgit2` by forwarding to `git2`’s `vendored-libgit2`
+  feature. Has no effect unless `git-libgit2` is also enabled.
 
 ## Example
 

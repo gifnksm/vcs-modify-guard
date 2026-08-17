@@ -38,12 +38,7 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 document-features = "0.2.12"
 dunce = "1.0.5"
 git2 = { version = "0.21.0", optional = true }
-gix = {
-  version = "0.86.0",
-  default-features = false,
-  features = ["sha1", "status"],
-  optional = true
-}
+gix = { version = "0.86.0", default-features = false, features = ["sha1", "status"], optional = true }
 snafu = "0.9.2"
 
 [dev-dependencies]

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [0.1.1] - 2026-08-27
+
 ### Fixed
 
 * Updated `gix` to fix build failures caused by the upstream `bisync` crate being yanked.
@@ -18,5 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * First release
 
 <!-- next-url -->
-[Unreleased]: https://github.com/gifnksm/vcs-modify-guard/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/gifnksm/vcs-modify-guard/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/gifnksm/vcs-modify-guard/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/gifnksm/vcs-modify-guard/commits/v0.1.0

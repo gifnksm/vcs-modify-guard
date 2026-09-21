@@ -143,7 +143,7 @@ change query APIs.
 [`AllowOptions`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/allow_options/struct.AllowOptions.html "struct vcs_modify_guard::allow_options::AllowOptions"
 [`ModificationSafety`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/allow_options/enum.ModificationSafety.html "enum vcs_modify_guard::allow_options::ModificationSafety"
 [`repository::Repository`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/repository/struct.Repository.html "struct vcs_modify_guard::repository::Repository"
-[`repository`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/repository/index.html "module vcs_modify_guard::repository"
+[`repository`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/repository/index.html "mod vcs_modify_guard::repository"
 <!-- cargo-sync-rdme ]] -->
 
 ## Minimum supported Rust version (MSRV)

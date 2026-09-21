@@ -60,7 +60,7 @@ docs-rs-all *args:
 
 # Synchronize README snippets for all packages.
 sync-rdme-all *args:
-    cargo hack sync-rdme --toolchain nightly --workspace {{ args }}
+    cargo hack sync-rdme --workspace {{ args }}
 
 # Detect unused dependencies.
 machete *args:

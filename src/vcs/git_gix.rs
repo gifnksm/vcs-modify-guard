@@ -31,7 +31,7 @@ pub enum GixBackendError {
         /// The path that was being searched for a Git repository.
         path: PathBuf,
         /// The underlying error from `gix`.
-        source: gix::discover::Error,
+        source: gix::Error,
     },
     /// Opening a Git repository failed.
     #[snafu(display("failed to open git repository at path: {}", path.display()))]
@@ -39,7 +39,7 @@ pub enum GixBackendError {
         /// The path that was being opened as a Git repository.
         path: PathBuf,
         /// The underlying error from `gix`.
-        source: gix::open::Error,
+        source: gix::Error,
     },
     /// Querying the status of a Git repository failed.
     #[snafu(display("failed to query git repository status for worktree: {}", worktree.display()))]
@@ -47,7 +47,7 @@ pub enum GixBackendError {
         /// The worktree of the Git repository.
         worktree: PathBuf,
         /// The underlying error from `gix`.
-        source: gix::status::Error,
+        source: gix::Error,
     },
     /// Converting the status of a Git repository into an iterator failed.
     #[snafu(display("failed to convert git repository status into iterator for worktree: {}", worktree.display()))]
@@ -55,7 +55,7 @@ pub enum GixBackendError {
         /// The worktree of the Git repository.
         worktree: PathBuf,
         /// The underlying error from `gix`.
-        source: gix::status::into_iter::Error,
+        source: gix::Error,
     },
     /// Iterating over the status of a Git repository failed.
     #[snafu(display("failed to iterate git repository status for worktree: {}", worktree.display()))]
@@ -63,7 +63,7 @@ pub enum GixBackendError {
         /// The worktree of the Git repository.
         worktree: PathBuf,
         /// The underlying error from `gix`.
-        source: gix::status::iter::Error,
+        source: gix::Error,
     },
 }
 
@@ -92,11 +92,7 @@ impl VcsBackend for GixBackend {
 
         let repo = match gix::discover(path) {
             Ok(repo) => repo,
-            Err(gix::discover::Error::Discover(
-                gix::discover::upwards::Error::NoGitRepository { .. }
-                | gix::discover::upwards::Error::NoGitRepositoryWithinCeiling { .. }
-                | gix::discover::upwards::Error::NoGitRepositoryWithinFs { .. },
-            )) => return Ok(None),
+            Err(source) if source.is_not_found() => return Ok(None),
             Err(source) => return Err(DiscoverSnafu { path }.into_error(source).into()),
         };
         let Some(worktree) = repo.workdir().map(Path::to_owned) else {
@@ -113,7 +109,7 @@ impl VcsBackend for GixBackend {
 
         let repo = match gix::open(path) {
             Ok(repo) => repo,
-            Err(gix::open::Error::NotARepository { .. }) => return Ok(None),
+            Err(source) if source.is_not_found() => return Ok(None),
             Err(source) => return Err(OpenSnafu { path }.into_error(source).into()),
         };
         let Some(worktree) = repo.workdir().map(Path::to_owned) else {

@@ -9,8 +9,7 @@ use snafu::{IntoError as _, ResultExt as _, Snafu};
 
 use super::VcsRepository;
 use crate::{
-    ModifyGuardError,
-    error::{self},
+    ModifyGuardError, error,
     repository::{FileChange, RepositoryChanges},
     util::{self, WorktreeRelativePath},
     vcs::VcsBackend,

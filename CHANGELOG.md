@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-* **Breaking:** Updated `gix` from 0.87.0 to 0.88.0. The `source` fields of `GixBackendError` variants now use `gix::Error` from 0.88.0; code relying on the 0.87.0 type must be updated.
+* **Breaking:** Updated `gix` from 0.87.0 to 0.89.0. The `source` fields of `GixBackendError` variants now use `gix::Error` from 0.89.0; code relying on the 0.87.0 type must be updated.
+
+### Added
+
+* Added `GixBackendError::EncodePath` and `GixBackendError::DecodePath` to report failures when converting between filesystem paths and Git path bytes.
 
 ## [0.1.1] - 2026-08-27
 

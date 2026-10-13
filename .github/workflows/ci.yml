@@ -5,10 +5,15 @@ on:
     branches:
       - main
   pull_request:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        description: "Codecov token for uploading coverage reports"
+        required: false
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 permissions:
@@ -22,10 +27,9 @@ env:
 
 jobs:
   set-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       rust: ${{ steps.set-values.outputs.rust }}
-      os: ${{ steps.set-values.outputs.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
@@ -35,326 +39,206 @@ jobs:
       - name: Set matrix values
         id: set-values
         run: |
-          root_package_id="$(cargo metadata --format-version 1 | jq -cr '.resolve.root')"
-          root_package="$(cargo metadata --format-version 1 | jq -c --arg pkgid "${root_package_id}" '.packages[] | select(.id == $pkgid)')"
-          echo "${root_package}" | jq -c '{ root_package: .name }'
+          json_array() {
+            jq -cnb --args '$ARGS.positional' "$@"
+          }
 
-          msrv="$(echo "${root_package}" | jq '.rust_version')"
-          rust="$(echo "[\"stable\", ${msrv}]" | jq -c)"
+          msrv="$(./scripts/print-metadata msrv)"
+          rust="$(json_array stable "${msrv}")"
           echo "rust=${rust}" >> "$GITHUB_OUTPUT"
 
-          os="$(echo '["ubuntu-latest", "macos-latest", "windows-latest"]' | jq -c)"
-          echo "os=${os}" >> "$GITHUB_OUTPUT"
-
-          jq -n --argjson rust "${rust}" --argjson os "${os}" '{ rust: $rust, os: $os }'
+          jq -nb --argjson rust "${rust}" '{ rust: $rust }'
         shell: bash
 
-  rustfmt:
-    name: Rustfmt
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [stable]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          components: rustfmt
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - run: just ci-rustfmt
-        shell: bash
-
-  check:
-    name: Check
+  check-rust:
+    name: Check (rust)
     needs: set-matrix
     strategy:
       fail-fast: true
       matrix:
         rust: ${{ fromJSON(needs.set-matrix.outputs.rust) }}
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: just ci-check
-        shell: bash
+    uses: $/.github/workflows/reusable-check-rust.yml
+    with:
+      rust-toolchain: ${{ matrix.rust }}
+      run-doc-checks: ${{ matrix.rust == 'stable' }}
 
-  clippy:
-    name: Clippy
-    needs: set-matrix
+  lint-rust:
+    name: Lint (rust)
     strategy:
       fail-fast: true
       matrix:
         rust: [stable]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          components: clippy
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: just ci-clippy
-        shell: bash
+    uses: $/.github/workflows/reusable-lint-rust.yml
+    with:
+      rust-toolchain: ${{ matrix.rust }}
 
-  rustdoc:
-    name: Rustdoc
-    needs: set-matrix
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [stable]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: just ci-rustdoc
-        shell: bash
-
-  docs-rs:
-    name: Docs.rs
-    needs: set-matrix
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [nightly]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: just ci-docs-rs
-        shell: bash
-
-  sync-rdme:
-    name: Sync Readme
-    needs: set-matrix
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [stable]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: rustup toolchain install nightly --profile minimal
-        shell: bash
-      - run: just ci-sync-rdme
-        shell: bash
-
-  machete:
-    name: Machete
-    needs: set-matrix
-    strategy:
-      fail-fast: true
-      matrix:
-        rust: [stable]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: just ci-machete
-        shell: bash
-
-  test:
-    name: Test
+  test-rust:
+    name: Test (rust)
     needs: set-matrix
     strategy:
       fail-fast: true
       matrix:
         rust: ${{ fromJSON(needs.set-matrix.outputs.rust) }}
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
-        with:
-          toolchain: ${{ matrix.rust }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - run: just ci-test
-        shell: bash
+    uses: $/.github/workflows/reusable-test-rust.yml
+    with:
+      rust-toolchain: ${{ matrix.rust }}
+      collect-coverage: ${{ matrix.rust == 'stable' }}
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  coverage:
-    name: Coverage (test)
-    needs: set-matrix
+  check-markdown:
+    name: Check (markdown)
     strategy:
       fail-fast: true
       matrix:
         rust: [stable]
-        os: ${{ fromJSON(needs.set-matrix.outputs.os) }}
+        os: [ubuntu-26.04, macos-26, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: ${{ matrix.rust }}
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           github_token: ${{ github.token }}
           persist_github_token: true
-      - run: just ci-coverage
+      - run: mise run install-toolchains-for-ci-check-markdown
         shell: bash
-      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/codecov.json
-          fail_ci_if_error: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: mise run ci:check-markdown
+        shell: bash
 
-  release-dry-run:
-    name: Release dry run
+  check-release:
+    name: Check (release)
     strategy:
       fail-fast: true
       matrix:
         rust: [stable]
-        os: [ubuntu-latest]
+        os: [ubuntu-26.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
         with:
           toolchain: ${{ matrix.rust }}
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: rustup toolchain install nightly --profile minimal
-        shell: bash
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - run: cargo release patch -vv --allow-branch '*'
+      - run: mise run check:release --skip-ci
         shell: bash
 
-  actionlint:
-    name: Actionlint
-    runs-on: ubuntu-latest
+  lint-workflow:
+    name: Lint (workflow)
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           github_token: ${{ github.token }}
           persist_github_token: true
-      - run: just ci-actionlint
+      - run: mise run ci:lint-workflow
+        shell: bash
 
-  typos:
-    name: Typos
-    runs-on: ubuntu-latest
+  lint-spelling:
+    name: Lint (spelling)
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           github_token: ${{ github.token }}
           persist_github_token: true
-      - run: just ci-typos
+      - run: mise run ci:lint-spelling
+        shell: bash
 
   lint-markdown:
     name: Lint (markdown)
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        rust: [stable]
+        os: [ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: ${{ matrix.rust }}
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           github_token: ${{ github.token }}
           persist_github_token: true
-      - run: just ci-lint-markdown
-
-  editorconfig:
-    name: EditorConfig
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - run: just ci-editorconfig -format github-actions
-
-  tombi:
-    name: Tombi
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          github_token: ${{ github.token }}
-          persist_github_token: true
-      - run: just ci-tombi-format
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: mise run ci:lint-markdown
         shell: bash
-      - run: just ci-tombi-lint
+
+  lint-editorconfig:
+    name: Lint (editorconfig)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - run: mise run ci:lint-editorconfig
+        shell: bash
+
+  lint-toml:
+    name: Lint (toml)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - run: mise run ci:lint-toml
+        shell: bash
+
+  lint-shell:
+    name: Lint (shell scripts)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - run: mise run ci:lint-shell
+        shell: bash
+
+  lint-renovate:
+    name: Lint (renovate)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - run: mise run ci:lint-renovate
         shell: bash
 
   ci-complete:
     needs:
       - set-matrix
-      - rustfmt
-      - check
-      - clippy
-      - rustdoc
-      - docs-rs
-      - sync-rdme
-      - machete
-      - test
-      - coverage
-      - release-dry-run
-      - actionlint
-      - typos
+      - check-rust
+      - lint-rust
+      - test-rust
+      - check-markdown
+      - check-release
+      - lint-workflow
+      - lint-spelling
       - lint-markdown
-      - editorconfig
-      - tombi
-    runs-on: ubuntu-latest
+      - lint-editorconfig
+      - lint-toml
+      - lint-shell
+      - lint-renovate
+    runs-on: ubuntu-26.04
     if: ${{ always() }}
     steps:
       - name: CI complete

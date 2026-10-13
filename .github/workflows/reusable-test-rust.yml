@@ -1,0 +1,73 @@
+name: Test Rust (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      rust-toolchain:
+        description: "Rust version to use"
+        required: true
+        type: string
+      collect-coverage:
+        description: "Whether to collect coverage data"
+        required: true
+        type: boolean
+    secrets:
+      CODECOV_TOKEN:
+        description: "Codecov token for uploading coverage reports"
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  MISE_CARGO_BINSTALL_ONLY: true
+  MISE_LOCKED: true
+
+jobs:
+  test:
+    name: Test
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-26.04, macos-26, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: ${{ inputs.rust-toolchain }}
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: mise run ci:test-rust
+        shell: bash
+
+  coverage:
+    name: Coverage (test)
+    if: ${{ inputs.collect-coverage }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-26.04, macos-26, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # v1
+        with:
+          toolchain: ${{ inputs.rust-toolchain }}
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          github_token: ${{ github.token }}
+          persist_github_token: true
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: mise run ci:coverage-rust
+        shell: bash
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/codecov.json
+          fail_ci_if_error: false

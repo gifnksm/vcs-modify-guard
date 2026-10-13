@@ -7,4 +7,5 @@ pre-release-replacements = [
   { file = "CHANGELOG.md", search = "<!-- next-url -->", replace = "<!-- next-url -->\n[Unreleased]: https://github.com/gifnksm/vcs-modify-guard/compare/{{tag_name}}...HEAD", exactly = 1 },
   { file = "Cargo.toml", search = "#! vcs-modify-guard = \\{\n#!   version = \".*\",$", replace = "#! vcs-modify-guard = {\n#!   version = \"{{version}}\",", exactly = 1 },
 ]
-pre-release-hook = ["just", "pre-release"]
+pre-release-hook = ["mise", "run", "pre-release"]
+publish = false

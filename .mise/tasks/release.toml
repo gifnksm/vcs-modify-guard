@@ -1,0 +1,20 @@
+[pre-release]
+run = [
+  { task = "sync:markdown --allow-dirty --locked" },
+  '''
+  {% if env.RELEASE_CHECK_FROM_CI != 'true' %}
+  mise run ci-for-pre-release
+  {% else %}
+  # pre-release checks skipped
+  {% endif %}
+  '''
+]
+
+["check:release"]
+usage = '''
+flag "--skip-ci" help="Skip CI checks"
+'''
+wait_for = ["ci:*"]
+run = '''
+RELEASE_CHECK_FROM_CI="{{ usage.skip_ci }}" cargo release patch --allow-branch '*'
+'''

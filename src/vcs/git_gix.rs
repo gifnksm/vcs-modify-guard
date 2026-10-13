@@ -65,6 +65,22 @@ pub enum GixBackendError {
         /// The underlying error from `gix`.
         source: gix::Error,
     },
+    /// Converting a filesystem path into Git path bytes failed.
+    #[snafu(display("failed to encode filesystem path as git path bytes: {}", path.display()))]
+    EncodePath {
+        /// The filesystem path that was being converted.
+        path: PathBuf,
+        /// The underlying error from `gix`.
+        source: gix::Error,
+    },
+    /// Converting Git status path bytes into a filesystem path failed.
+    #[snafu(display("failed to decode git status path bytes for worktree: {}", worktree.display()))]
+    DecodePath {
+        /// The worktree of the Git repository.
+        worktree: PathBuf,
+        /// The underlying error from `gix`.
+        source: gix::Error,
+    },
 }
 
 impl From<GixBackendError> for ModifyGuardError {
@@ -201,7 +217,9 @@ impl GixRepository {
             .untracked_files(gix::status::UntrackedFiles::Files)
             .index_worktree_rewrites(None)
             .tree_index_track_renames(gix::status::tree_index::TrackRenames::Disabled);
-        let patterns = wt_path.map(|wt_path| literal_pathspec(wt_path.as_path()));
+        let patterns = wt_path
+            .map(|wt_path| literal_pathspec(wt_path.as_path()))
+            .transpose()?;
         let status_iter = status_platform
             .into_iter(patterns)
             .context(StatusIntoIterSnafu { worktree })?;
@@ -228,10 +246,8 @@ impl GixRepository {
                     }
                 }
             };
-            changes
-                .entry(gix::path::from_bstring(wt_path))
-                .or_default()
-                .merge(status);
+            let wt_path = gix::path::from_bstring(wt_path).context(DecodePathSnafu { worktree })?;
+            changes.entry(wt_path).or_default().merge(status);
         }
 
         Ok(changes
@@ -279,8 +295,8 @@ impl StatusFlags {
     }
 }
 
-fn literal_pathspec(path: &Path) -> BString {
+fn literal_pathspec(path: &Path) -> Result<BString, GixBackendError> {
     let mut pattern = BString::from(":(top,literal)");
-    pattern.extend_from_slice(&gix::path::into_bstr(path));
-    pattern
+    pattern.extend_from_slice(&gix::path::into_bstr(path).context(EncodePathSnafu { path })?);
+    Ok(pattern)
 }

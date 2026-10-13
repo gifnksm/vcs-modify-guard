@@ -14,21 +14,21 @@ mod tests;
 ///
 /// This type matches the semantics of `cargo fix`:
 ///
-/// - `allow_no_vcs` treats modification as safe even when no supported VCS
+/// * `allow_no_vcs` treats modification as safe even when no supported VCS
 ///   repository is found
-/// - `allow_dirty` treats modification as safe even when the path is dirty or
+/// * `allow_dirty` treats modification as safe even when the path is dirty or
 ///   has staged changes
-/// - `allow_staged` treats modification as safe even when the path has staged
+/// * `allow_staged` treats modification as safe even when the path has staged
 ///   changes, but still considers dirty files unsafe
 ///
 /// These options are not interpreted independently. Higher-precedence options
 /// imply lower-precedence ones, matching `cargo fix`:
 ///
-/// - `allow_no_vcs` skips repository discovery and repository state checks
+/// * `allow_no_vcs` skips repository discovery and repository state checks
 ///   entirely
-/// - `allow_dirty` still requires repository discovery, but implies
+/// * `allow_dirty` still requires repository discovery, but implies
 ///   `allow_staged` and skips dirty and staged change checks
-/// - `allow_staged` still requires repository discovery and change queries,
+/// * `allow_staged` still requires repository discovery and change queries,
 ///   but dirty files remain unsafe
 ///
 /// By default, checks are scoped to the queried path. Use
@@ -186,12 +186,12 @@ impl AllowOptions {
     ///
     /// Flag handling matches `cargo fix`:
     ///
-    /// - [`Self::allow_no_vcs`] returns [`ModificationSafety::Safe`] and skips
+    /// * [`Self::allow_no_vcs`] returns [`ModificationSafety::Safe`] and skips
     ///   repository discovery and repository state checks
-    /// - [`Self::allow_dirty`] still requires repository discovery, but returns
+    /// * [`Self::allow_dirty`] still requires repository discovery, but returns
     ///   [`ModificationSafety::Safe`] and skips rejecting dirty or staged
     ///   changes
-    /// - [`Self::allow_staged`] still requires repository discovery and change
+    /// * [`Self::allow_staged`] still requires repository discovery and change
     ///   queries, but dirty files remain unsafe
     ///
     /// When [`Self::check_entire_repository`] is disabled, the safety check is

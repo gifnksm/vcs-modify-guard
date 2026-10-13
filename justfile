@@ -68,7 +68,7 @@ machete *args:
 
 # Check workflow files.
 actionlint *args:
-    actionlint {{ args }}
+    jactionlint {{ args }}
 
 # Check spelling of entire workspace.
 typos *args:
@@ -76,7 +76,7 @@ typos *args:
 
 # Lint markdown files.
 markdownlint *args:
-    npx markdownlint-cli {{ args }} .
+    markdownlint {{ args }} .
 
 # Check EditorConfig compliance.
 editorconfig *args:
@@ -84,11 +84,11 @@ editorconfig *args:
 
 # Format TOML files.
 tombi-format *args:
-    uvx tombi format {{ args }}
+    tombi format {{ args }}
 
 # Lint TOML files.
 tombi-lint *args:
-    uvx tombi lint {{ args }}
+    tombi lint {{ args }}
 
 # Run lint and static checks used for day-to-day local verification.
 ci-lint: ci-rustfmt ci-check ci-clippy ci-machete ci-actionlint ci-typos ci-markdownlint ci-editorconfig ci-tombi-format ci-tombi-lint

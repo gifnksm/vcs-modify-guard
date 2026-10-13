@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+
+* **Breaking:** Updated `gix` from 0.87.0 to 0.88.0. The `source` fields of `GixBackendError` variants now use `gix::Error` from 0.88.0; code relying on the 0.87.0 type must be updated.
+
 ## [0.1.1] - 2026-08-27
 
 ### Fixed

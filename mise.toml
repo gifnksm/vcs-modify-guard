@@ -14,6 +14,7 @@ lockfile_platforms = [
 [tools]
 "aqua:taiki-e/cargo-llvm-cov" = { version = "0.9.1", lazy = true, lazy_bins = ["cargo-llvm-cov"] }
 cargo-binstall = "1.25.2"  # lets mise install cargo:* tools from binaries instead of compiling them
+cargo-deny = { version = "0.20.2", lazy = true }
 cargo-release = { version = "1.1.6", lazy = true, lazy_bins = ["cargo-release"], platforms.windows-arm64.asset_pattern = "cargo-release-v{{ version }}-x86_64-pc-windows-msvc.zip" }
 "cargo:cargo-docs-rs" = { version = "1.0.4", lazy = true, lazy_bins = ["cargo-docs-rs"] }
 editorconfig-checker = { version = "4.0.2", lazy = true, lazy_bins = ["editorconfig-checker"] }
@@ -22,7 +23,8 @@ editorconfig-checker = { version = "4.0.2", lazy = true, lazy_bins = ["editorcon
 "github:gifnksm/cargo-sync-rdme" = { version = "0.8.3", lazy = true, lazy_bins = ["cargo-sync-rdme"] }
 "github:taiki-e/cargo-hack" = { version = "0.6.45", lazy = true, lazy_bins = ["cargo-hack"] }
 jactionlint = { version = "1.8.2", lazy = true }
-just = "1.58.0"
 rumdl = { version = "0.2.79", lazy = true }
+shellcheck = { version = "0.11.0", lazy = true }
+shfmt = { version = "3.14.1", lazy = true }
 tombi = { version = "1.8.0", lazy = true }
 typos = { version = "1.51.1", lazy = true }

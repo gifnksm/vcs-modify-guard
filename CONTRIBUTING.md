@@ -16,7 +16,7 @@ keywords.
 
 Try to do one pull request per change.
 
-Run `just ci` before opening or updating a pull request.
+Run `mise run ci` before opening or updating a pull request.
 
 When a pull request resolves an issue, reference it in the PR description with
 `Closes #<number>`. When it is related to an issue but does not resolve it,
@@ -61,38 +61,10 @@ cargo test
 
 ### Useful Commands
 
-* Run lint and static checks during development:
-
-  ```console
-  just ci-lint
-  ```
-
 * Run the full CI-equivalent suite, including docs and tests, before opening or updating a pull request:
 
   ```console
-  just ci
+  mise run ci
   ```
 
-* Run formatting checks:
-
-  ```console
-  just fmt --check
-  ```
-
-* Format the code in the project:
-
-  ```console
-  just fmt
-  ```
-
-* Run all tests:
-
-  ```console
-  just test-all
-  ```
-
-* Run Clippy:
-
-  ```console
-  just clippy-all -- -D warnings
-  ```
+See `mise tasks ls` for more commands.

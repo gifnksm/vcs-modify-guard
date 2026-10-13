@@ -75,8 +75,8 @@ typos *args:
     typos {{ args }}
 
 # Lint markdown files.
-markdownlint *args:
-    markdownlint {{ args }} .
+lint-markdown *args:
+    rumdl check {{ args }}
 
 # Check EditorConfig compliance.
 editorconfig *args:
@@ -91,7 +91,7 @@ tombi-lint *args:
     tombi lint {{ args }}
 
 # Run lint and static checks used for day-to-day local verification.
-ci-lint: ci-rustfmt ci-check ci-clippy ci-machete ci-actionlint ci-typos ci-markdownlint ci-editorconfig ci-tombi-format ci-tombi-lint
+ci-lint: ci-rustfmt ci-check ci-clippy ci-machete ci-actionlint ci-typos ci-lint-markdown ci-editorconfig ci-tombi-format ci-tombi-lint
 
 # Run all CI-equivalent checks.
 ci: ci-lint ci-rustdoc ci-docs-rs ci-sync-rdme ci-test ci-coverage
@@ -136,8 +136,8 @@ ci-typos:
     just typos
 
 # CI: lint markdown files.
-ci-markdownlint:
-    just markdownlint
+ci-lint-markdown:
+    just lint-markdown
 
 # CI: check EditorConfig compliance.
 ci-editorconfig *args:

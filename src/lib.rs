@@ -8,14 +8,14 @@
 //! Currently, this crate supports Git repositories. Backend selection is
 //! controlled by Cargo features; see [Feature flags](#feature-flags).
 //!
-//! # API overview
+//! # API Overview
 //!
 //! This crate provides two layers of API:
 //!
-//! - [`AllowOptions`] is the main entry point. It implements `cargo fix`-style
+//! * [`AllowOptions`] is the main entry point. It implements `cargo fix`-style
 //!   safe-to-modify checks and returns a [`ModificationSafety`] describing whether
 //!   modification is safe. By default, checks are scoped to the queried path.
-//! - [`repository::Repository`] is a lower-level API for tools that need to
+//! * [`repository::Repository`] is a lower-level API for tools that need to
 //!   discover a repository and inspect whether files are dirty and/or staged to
 //!   implement their own policy. Dirty files include modified tracked files and
 //!   untracked files.
@@ -24,8 +24,10 @@
 //! [`repository::Repository`] only when you need custom behavior beyond the
 //! built-in `--allow-*` semantics.
 //!
-//! # Feature flags
+//! <!-- rumdl-disable MD064 -->
+//! # Feature Flags
 #![doc = document_features::document_features!()]
+//! <!-- rumdl-enable MD064 -->
 //!
 //! # Example
 //!

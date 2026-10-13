@@ -58,7 +58,7 @@ default = ["git-default"]
 #! This crate currently supports Git repositories via selectable Git
 #! backends.
 #!
-#! ## Backend selection features
+#! ## Backend Selection Features
 
 ## Enables the default Git backend. Currently, this enables `git-gix`.
 git-default = ["git-gix"]
@@ -78,7 +78,7 @@ git-libgit2 = ["dep:git2"]
 #! vcs-modify-guard = {
 #!   version = "0.1.1",
 #!   default-features = false,
-#!   features = ["git-libgit2"]
+#!   features = ["git-libgit2"],
 #! }
 #! ```
 #!
@@ -88,7 +88,7 @@ git-libgit2 = ["dep:git2"]
 #! If no backend selection features are enabled, repository discovery reports
 #! that no supported repository was found.
 
-#! ## Backend configuration features
+#! ## Backend Configuration Features
 
 ## Enables vendored `libgit2` by forwarding to `git2`'s `vendored-libgit2`
 ## feature. Has no effect unless `git-libgit2` is also enabled.

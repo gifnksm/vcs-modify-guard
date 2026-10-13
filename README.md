@@ -1,6 +1,8 @@
+<!-- rumdl-disable MD063 -->
 <!-- cargo-sync-rdme title [[ -->
 # vcs-modify-guard
 <!-- cargo-sync-rdme ]] -->
+<!-- rumdl-enable MD063 -->
 <!-- cargo-sync-rdme badge [[ -->
 [![Maintenance: actively-developed](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg?style=flat-square)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section)
 [![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/vcs-modify-guard.svg?style=flat-square)](#license)
@@ -22,7 +24,7 @@ files.
 Currently, this crate supports Git repositories. Backend selection is
 controlled by Cargo features; see [Feature flags](#feature-flags).
 
-## API overview
+## API Overview
 
 This crate provides two layers of API:
 
@@ -38,12 +40,14 @@ Most users should start with [`AllowOptions`]. Reach for
 [`repository::Repository`] only when you need custom behavior beyond the
 built-in `--allow-*` semantics.
 
-## Feature flags
+<!-- rumdl-disable MD064 -->
+
+## Feature Flags
 
 This crate currently supports Git repositories via selectable Git
 backends.
 
-### Backend selection features
+### Backend Selection Features
 
 * **`git-default`** *(enabled by default)* —  Enables the default Git backend. Currently, this enables `git-gix`.
 * **`git-cli`** —  Enables the Git CLI backend.
@@ -58,7 +62,7 @@ desired backend feature(s) explicitly:
 vcs-modify-guard = {
   version = "0.1.1",
   default-features = false,
-  features = ["git-libgit2"]
+  features = ["git-libgit2"],
 }
 ````
 
@@ -68,10 +72,12 @@ order: `gix`, then `libgit2`, then the Git CLI.
 If no backend selection features are enabled, repository discovery reports
 that no supported repository was found.
 
-### Backend configuration features
+### Backend Configuration Features
 
 * **`vendored-libgit2`** —  Enables vendored `libgit2` by forwarding to `git2`’s `vendored-libgit2`
   feature. Has no effect unless `git-libgit2` is also enabled.
+
+<!-- rumdl-enable MD064 -->
 
 ## Example
 
@@ -146,7 +152,7 @@ change query APIs.
 [`repository`]: https://docs.rs/vcs-modify-guard/0.1.1/vcs_modify_guard/repository/index.html "mod vcs_modify_guard::repository"
 <!-- cargo-sync-rdme ]] -->
 
-## Minimum supported Rust version (MSRV)
+## Minimum Supported Rust Version (MSRV)
 
 The minimum supported Rust version is **Rust 1.96.0**.
 
@@ -158,9 +164,9 @@ Once a crate has reached 1.x, any MSRV bump will be accompanied by a new minor v
 This project is licensed under either of
 
 * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 

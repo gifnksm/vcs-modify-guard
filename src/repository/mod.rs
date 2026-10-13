@@ -173,8 +173,8 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - a backend fails while probing `path`
-    /// - the discovered repository does not provide a worktree for file
+    /// * a backend fails while probing `path`
+    /// * the discovered repository does not provide a worktree for file
     ///   change checks
     #[inline]
     pub fn discover<P>(path: P) -> Result<Option<Self>, ModifyGuardError>
@@ -197,8 +197,8 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not refer to a supported repository worktree
-    /// - the backend fails to open it
+    /// * `path` does not refer to a supported repository worktree
+    /// * the backend fails to open it
     #[inline]
     pub fn open<P>(path: P) -> Result<Self, ModifyGuardError>
     where
@@ -232,8 +232,8 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `path` does not resolve to a path within [`Self::worktree`]
-    /// - `path` could not be resolved to a canonical path for any other reason
+    /// * `path` does not resolve to a path within [`Self::worktree`]
+    /// * `path` could not be resolved to a canonical path for any other reason
     #[inline]
     pub fn resolve_path<P>(&self, path: P) -> Result<PathBuf, ModifyGuardError>
     where
@@ -288,11 +288,11 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `wt_path` does not resolve to a path within [`Self::worktree`]
-    /// - `wt_path` does not exist in the worktree and does not refer to a path
+    /// * `wt_path` does not resolve to a path within [`Self::worktree`]
+    /// * `wt_path` does not exist in the worktree and does not refer to a path
     ///   known to the VCS
-    /// - `wt_path` could not be resolved to a canonical path for any other reason
-    /// - the backend fails to query changes for `wt_path` for any other reason
+    /// * `wt_path` could not be resolved to a canonical path for any other reason
+    /// * the backend fails to query changes for `wt_path` for any other reason
     #[inline]
     pub fn path_changes<P>(&self, wt_path: P) -> Result<Option<RepositoryChanges>, ModifyGuardError>
     where
@@ -331,13 +331,13 @@ impl Repository {
     ///
     /// Returns an error if:
     ///
-    /// - `wt_path` does not resolve to a path within [`Self::worktree`]
-    /// - the resolved path exists in the worktree but does not resolve to a
+    /// * `wt_path` does not resolve to a path within [`Self::worktree`]
+    /// * the resolved path exists in the worktree but does not resolve to a
     ///   file
-    /// - `wt_path` does not exist in the worktree and does not refer to a tracked
+    /// * `wt_path` does not exist in the worktree and does not refer to a tracked
     ///   path known to the VCS
-    /// - `wt_path` could not be resolved to a canonical path for any other reason
-    /// - the backend fails to query file changes for any other reason
+    /// * `wt_path` could not be resolved to a canonical path for any other reason
+    /// * the backend fails to query file changes for any other reason
     #[inline]
     pub fn file_change<P>(&self, wt_path: P) -> Result<Option<FileChange>, ModifyGuardError>
     where

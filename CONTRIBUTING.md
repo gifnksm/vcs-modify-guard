@@ -16,7 +16,20 @@ keywords.
 
 Try to do one pull request per change.
 
-Run `mise run ci` before opening or updating a pull request.
+For Rust code changes, run the following checks before opening or updating a
+pull request:
+
+```console
+cargo fmt --all --check
+cargo clippy --all-features --all-targets --workspace
+cargo test
+```
+
+For changes limited to documentation or other non-Rust files, check the files
+relevant to your changes; you do not need to run the Rust checks above.
+
+After opening or updating a pull request, review the CI results and fix any
+failures caused by your changes.
 
 When a pull request resolves an issue, reference it in the PR description with
 `Closes #<number>`. When it is related to an issue but does not resolve it,
@@ -24,15 +37,22 @@ reference it with `Refs #<number>`.
 
 ### Updating the Changelog
 
-Update the changes you have made in
-[CHANGELOG](https://github.com/gifnksm/vcs-modify-guard/blob/main/CHANGELOG.md)
-file under the **Unreleased** section.
+Document notable changes that affect users of this crate in the
+**Unreleased** section of
+[CHANGELOG](https://github.com/gifnksm/vcs-modify-guard/blob/main/CHANGELOG.md).
+
+Include changes to public APIs, behavior, performance, security, and
+compatibility requirements such as the minimum supported Rust version (MSRV).
+
+Changes limited to internal refactoring, tests, CI, development tooling,
+or minor documentation edits do not require a changelog entry unless
+they have a notable impact on users.
 
 Add the pull request number to changelog entries when available. If the pull
 request number is not known yet, update the changelog after creating the pull
 request.
 
-Add the changes of your pull request to one of the following subsections,
+Place each changelog entry in one of the following subsections,
 depending on the types of changes defined by
 [Keep a changelog](https://keepachangelog.com/en/1.0.0/):
 
@@ -49,7 +69,7 @@ If the required subsection does not exist yet under **Unreleased**, create it!
 
 If you want to contribute to the development of vcs-modify-guard, you can follow the steps below.
 
-### Set Up
+### Setup
 
 This is no different than other Rust projects.
 
@@ -61,10 +81,11 @@ cargo test
 
 ### Useful Commands
 
-* Run the full CI-equivalent suite, including docs and tests, before opening or updating a pull request:
+* Optionally, run the full CI-equivalent suite locally, including docs and tests,
+  using mise. Installing mise is not required to contribute:
 
   ```console
   mise run ci
   ```
 
-See `mise tasks ls` for more commands.
+If you use mise, see `mise tasks ls` for more commands.

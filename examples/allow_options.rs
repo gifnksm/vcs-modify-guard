@@ -1,5 +1,5 @@
-//! Demonstrates path-scoped `--allow-dirty`, `--allow-staged`, and
-//! `--allow-no-vcs` checks using [`vcs_modify_guard::AllowOptions`].
+//! Demonstrates path-scoped `--allow-dirty`, `--allow-staged`, and `--allow-no-vcs`
+//! checks using [`vcs_modify_guard::AllowOptions`].
 //!
 //! This example uses the same `--allow-*` flag semantics as `cargo fix`, but
 //! applies them only to the queried path by default.
@@ -14,8 +14,8 @@ struct Args {
     /// Process code even if a VCS was not detected.
     #[arg(long)]
     allow_no_vcs: bool,
-    /// Process code even if the target path has modified, staged, or
-    /// untracked files under it.
+    /// Process code even if the target path has modified, staged, or untracked files
+    /// under it.
     #[arg(long)]
     allow_dirty: bool,
     /// Process code even if the target path has staged changes under it.

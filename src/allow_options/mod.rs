@@ -16,24 +16,23 @@ mod tests;
 ///
 /// * `allow_no_vcs` treats modification as safe even when no supported VCS
 ///   repository is found
-/// * `allow_dirty` treats modification as safe even when the path is dirty or
-///   has staged changes
+/// * `allow_dirty` treats modification as safe even when the path is dirty or has
+///   staged changes
 /// * `allow_staged` treats modification as safe even when the path has staged
 ///   changes, but still considers dirty files unsafe
 ///
-/// These options are not interpreted independently. Higher-precedence options
-/// imply lower-precedence ones, matching `cargo fix`:
+/// These options are not interpreted independently. Higher-precedence options imply
+/// lower-precedence ones, matching `cargo fix`:
 ///
-/// * `allow_no_vcs` skips repository discovery and repository state checks
-///   entirely
-/// * `allow_dirty` still requires repository discovery, but implies
-///   `allow_staged` and skips dirty and staged change checks
-/// * `allow_staged` still requires repository discovery and change queries,
-///   but dirty files remain unsafe
+/// * `allow_no_vcs` skips repository discovery and repository state checks entirely
+/// * `allow_dirty` still requires repository discovery, but implies `allow_staged`
+///   and skips dirty and staged change checks
+/// * `allow_staged` still requires repository discovery and change queries, but
+///   dirty files remain unsafe
 ///
 /// By default, checks are scoped to the queried path. Use
-/// [`Self::check_entire_repository`] to check the containing repository as a
-/// whole instead.
+/// [`Self::check_entire_repository`] to check the containing repository as a whole
+/// instead.
 ///
 /// # Example
 ///
@@ -122,9 +121,9 @@ impl AllowOptions {
 
     /// Sets whether to use `cargo fix`-style `--allow-no-vcs` behavior.
     ///
-    /// When enabled, this skips repository discovery and repository state
-    /// checks entirely, matching `cargo fix`. In other words, this does
-    /// more than only relax the "no repository found" case.
+    /// When enabled, this skips repository discovery and repository state checks
+    /// entirely, matching `cargo fix`. In other words, this does more than only relax
+    /// the "no repository found" case.
     #[inline]
     #[must_use]
     pub const fn allow_no_vcs(mut self, enabled: bool) -> Self {
@@ -135,8 +134,8 @@ impl AllowOptions {
     /// Sets whether to use `cargo fix`-style `--allow-dirty` behavior.
     ///
     /// When enabled, this still requires repository discovery unless
-    /// [`Self::allow_no_vcs`] is enabled, but it treats both dirty files and
-    /// staged changes as safe. This also implies [`Self::allow_staged`].
+    /// [`Self::allow_no_vcs`] is enabled, but it treats both dirty files and staged
+    /// changes as safe. This also implies [`Self::allow_staged`].
     #[inline]
     #[must_use]
     pub const fn allow_dirty(mut self, enabled: bool) -> Self {
@@ -146,9 +145,8 @@ impl AllowOptions {
 
     /// Sets whether to use `cargo fix`-style `--allow-staged` behavior.
     ///
-    /// When enabled, this still requires repository discovery and change
-    /// queries unless [`Self::allow_no_vcs`] is enabled. Dirty files are still
-    /// considered unsafe.
+    /// When enabled, this still requires repository discovery and change queries unless
+    /// [`Self::allow_no_vcs`] is enabled. Dirty files are still considered unsafe.
     #[inline]
     #[must_use]
     pub const fn allow_staged(mut self, enabled: bool) -> Self {
@@ -156,8 +154,8 @@ impl AllowOptions {
         self
     }
 
-    /// Sets whether the safety check should cover the entire containing
-    /// repository rather than only the queried path.
+    /// Sets whether the safety check should cover the entire containing repository
+    /// rather than only the queried path.
     #[inline]
     #[must_use]
     pub const fn check_entire_repository(mut self, enabled: bool) -> Self {
@@ -181,28 +179,26 @@ impl AllowOptions {
         }
     }
 
-    /// Checks whether modification of `path` is considered safe under the
-    /// current `--allow-*` settings.
+    /// Checks whether modification of `path` is considered safe under the current
+    /// `--allow-*` settings.
     ///
     /// Flag handling matches `cargo fix`:
     ///
     /// * [`Self::allow_no_vcs`] returns [`ModificationSafety::Safe`] and skips
     ///   repository discovery and repository state checks
     /// * [`Self::allow_dirty`] still requires repository discovery, but returns
-    ///   [`ModificationSafety::Safe`] and skips rejecting dirty or staged
-    ///   changes
-    /// * [`Self::allow_staged`] still requires repository discovery and change
-    ///   queries, but dirty files remain unsafe
+    ///   [`ModificationSafety::Safe`] and skips rejecting dirty or staged changes
+    /// * [`Self::allow_staged`] still requires repository discovery and change queries,
+    ///   but dirty files remain unsafe
     ///
-    /// When [`Self::check_entire_repository`] is disabled, the safety check is
-    /// scoped to `path` after resolving it within the containing repository
-    /// worktree. When enabled, the entire containing repository is checked.
+    /// When [`Self::check_entire_repository`] is disabled, the safety check is scoped
+    /// to `path` after resolving it within the containing repository worktree. When
+    /// enabled, the entire containing repository is checked.
     ///
     /// # Errors
     ///
-    /// Returns an error if repository discovery fails, if `path` cannot be
-    /// resolved for change queries, or if the backend fails to query the
-    /// relevant changes.
+    /// Returns an error if repository discovery fails, if `path` cannot be resolved for
+    /// change queries, or if the backend fails to query the relevant changes.
     #[inline]
     pub fn check_safe_to_modify<P>(&self, path: P) -> Result<ModificationSafety, ModifyGuardError>
     where
@@ -325,11 +321,11 @@ impl AllowOptionsRepository for Repository {
     }
 }
 
-/// Whether modification of the queried target is considered safe under the
-/// current `--allow-*` policy.
+/// Whether modification of the queried target is considered safe under the current
+/// `--allow-*` policy.
 ///
-/// This type describes the safety of modifying the queried target after
-/// applying the configured policy.
+/// This type describes the safety of modifying the queried target after applying
+/// the configured policy.
 #[expect(
     clippy::exhaustive_enums,
     reason = "Callers should exhaustively match the current outcomes; adding a new variant is an intentional breaking API change"
@@ -344,8 +340,8 @@ pub enum ModificationSafety {
     Unsafe(UnsafeModificationReason),
 }
 
-/// The reason modification of the queried target is considered unsafe under
-/// the current `--allow-*` policy.
+/// The reason modification of the queried target is considered unsafe under the
+/// current `--allow-*` policy.
 ///
 // Use `#[doc = ...]` instead of a regular doc comment here because the
 // crate's `clippy::unnecessary_safety_comment` lint false-positively flags
@@ -354,31 +350,28 @@ pub enum ModificationSafety {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum UnsafeModificationReason {
-    /// Modification is considered unsafe because no supported VCS repository
-    /// was found for the queried target.
+    /// Modification is considered unsafe because no supported VCS repository was found
+    /// for the queried target.
     NoVcs,
     /// Modification is considered unsafe because dirty files were found.
     ///
-    /// `staged_files` is non-empty only when staged changes also make the
-    /// modification unsafe.
+    /// `staged_files` is non-empty only when staged changes also make the modification
+    /// unsafe.
     Dirty {
         /// The root directory of the containing repository worktree.
         worktree: PathBuf,
-        /// Worktree-relative paths of dirty files that make the modification
-        /// unsafe.
+        /// Worktree-relative paths of dirty files that make the modification unsafe.
         ///
         /// This includes modified and untracked files.
         dirty_files: Vec<PathBuf>,
-        /// Worktree-relative paths of staged files that also make the
-        /// modification unsafe.
+        /// Worktree-relative paths of staged files that also make the modification unsafe.
         staged_files: Vec<PathBuf>,
     },
     /// Modification is considered unsafe because staged changes were found.
     Staged {
         /// The root directory of the containing repository worktree.
         worktree: PathBuf,
-        /// Worktree-relative paths of staged files that make the modification
-        /// unsafe.
+        /// Worktree-relative paths of staged files that make the modification unsafe.
         staged_files: Vec<PathBuf>,
     },
 }

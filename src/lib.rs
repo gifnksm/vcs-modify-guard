@@ -1,12 +1,10 @@
-//! Help CLI tools decide whether it is safe to modify files in a VCS
-//! working tree.
+//! Help CLI tools decide whether it is safe to modify files in a VCS working tree.
 //!
-//! `vcs-modify-guard` helps CLI tools enforce `--allow-dirty`,
-//! `--allow-staged`, and `--allow-no-vcs` style checks before they modify
-//! files.
+//! `vcs-modify-guard` helps CLI tools enforce `--allow-dirty`, `--allow-staged`,
+//! and `--allow-no-vcs` style checks before they modify files.
 //!
-//! Currently, this crate supports Git repositories. Backend selection is
-//! controlled by Cargo features; see [Feature flags](#feature-flags).
+//! Currently, this crate supports Git repositories. Backend selection is controlled
+//! by Cargo features; see [Feature flags](#feature-flags).
 //!
 //! # API Overview
 //!
@@ -24,15 +22,15 @@
 //! [`repository::Repository`] only when you need custom behavior beyond the
 //! built-in `--allow-*` semantics.
 //!
-//! <!-- rumdl-disable MD064 -->
+//! <!-- rumdl-disable MD013 MD064 -->
 //! # Feature Flags
 #![doc = document_features::document_features!()]
-//! <!-- rumdl-enable MD064 -->
+//! <!-- rumdl-enable MD013 MD064 -->
 //!
 //! # Example
 //!
-//! The following example shows how to validate whether a target path is safe
-//! to modify before performing an operation that may modify files.
+//! The following example shows how to validate whether a target path is safe to
+//! modify before performing an operation that may modify files.
 //!
 //! ```no_run
 //! use std::path::{Path, PathBuf};
@@ -92,9 +90,9 @@
 //!
 //! See the `allow_options` example for a complete command-line application.
 //!
-//! If you need custom policy logic instead of the built-in `--allow-*`
-//! behavior, see the [`repository`] module for direct repository discovery and
-//! change query APIs.
+//! If you need custom policy logic instead of the built-in `--allow-*` behavior,
+//! see the [`repository`] module for direct repository discovery and change query
+//! APIs.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

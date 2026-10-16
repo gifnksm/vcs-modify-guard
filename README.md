@@ -14,15 +14,13 @@
 <!-- cargo-sync-rdme ]] -->
 
 <!-- cargo-sync-rdme rustdoc [[ -->
-Help CLI tools decide whether it is safe to modify files in a VCS
-working tree.
+Help CLI tools decide whether it is safe to modify files in a VCS working tree.
 
-`vcs-modify-guard` helps CLI tools enforce `--allow-dirty`,
-`--allow-staged`, and `--allow-no-vcs` style checks before they modify
-files.
+`vcs-modify-guard` helps CLI tools enforce `--allow-dirty`, `--allow-staged`,
+and `--allow-no-vcs` style checks before they modify files.
 
-Currently, this crate supports Git repositories. Backend selection is
-controlled by Cargo features; see [Feature flags](#feature-flags).
+Currently, this crate supports Git repositories. Backend selection is controlled
+by Cargo features; see [Feature flags](#feature-flags).
 
 ## API Overview
 
@@ -40,7 +38,7 @@ Most users should start with [`AllowOptions`]. Reach for
 [`repository::Repository`] only when you need custom behavior beyond the
 built-in `--allow-*` semantics.
 
-<!-- rumdl-disable MD064 -->
+<!-- rumdl-disable MD013 MD064 -->
 
 ## Feature Flags
 
@@ -77,12 +75,12 @@ that no supported repository was found.
 * **`vendored-libgit2`** —  Enables vendored `libgit2` by forwarding to `git2`’s `vendored-libgit2`
   feature. Has no effect unless `git-libgit2` is also enabled.
 
-<!-- rumdl-enable MD064 -->
+<!-- rumdl-enable MD013 MD064 -->
 
 ## Example
 
-The following example shows how to validate whether a target path is safe
-to modify before performing an operation that may modify files.
+The following example shows how to validate whether a target path is safe to
+modify before performing an operation that may modify files.
 
 ````rust,no_run
 use std::path::{Path, PathBuf};
@@ -142,9 +140,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 See the `allow_options` example for a complete command-line application.
 
-If you need custom policy logic instead of the built-in `--allow-*`
-behavior, see the [`repository`] module for direct repository discovery and
-change query APIs.
+If you need custom policy logic instead of the built-in `--allow-*` behavior,
+see the [`repository`] module for direct repository discovery and change query
+APIs.
 
 [`AllowOptions`]: https://docs.rs/vcs-modify-guard/0.2.0/vcs_modify_guard/allow_options/struct.AllowOptions.html "struct vcs_modify_guard::allow_options::AllowOptions"
 [`ModificationSafety`]: https://docs.rs/vcs-modify-guard/0.2.0/vcs_modify_guard/allow_options/enum.ModificationSafety.html "enum vcs_modify_guard::allow_options::ModificationSafety"
@@ -156,17 +154,18 @@ change query APIs.
 
 The minimum supported Rust version is **Rust 1.96.0**.
 
-While a crate is a pre-release status (0.x.x) it may have its MSRV bumped in a patch release.
-Once a crate has reached 1.x, any MSRV bump will be accompanied by a new minor version.
+While a crate is a pre-release status (0.x.x) it may have its MSRV bumped in a
+patch release. Once a crate has reached 1.x, any MSRV bump will be accompanied
+by a new minor version.
 
 ## License
 
 This project is licensed under either of
 
-* Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-* MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  <http://opensource.org/licenses/MIT>)
 
 at your option.
 

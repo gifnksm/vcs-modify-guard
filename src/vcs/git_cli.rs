@@ -77,7 +77,8 @@ pub enum GitCliBackendError {
     /// No worktree listed by Git matched the repository administrative directory.
     #[snafu(display("no listed worktree matched git dir: {}", git_dir.display()))]
     NoWorktreeForGitDir {
-        /// The repository administrative directory that could not be mapped back to a worktree.
+        /// The repository administrative directory that could not be mapped back to a
+        /// worktree.
         git_dir: PathBuf,
     },
 }

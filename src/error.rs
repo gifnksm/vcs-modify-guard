@@ -7,15 +7,15 @@ use snafu::Snafu;
 #[non_exhaustive]
 #[snafu(visibility(pub(crate)))]
 pub enum ModifyGuardError {
-    /// The specified path does not refer to a repository supported by the
-    /// enabled backends.
+    /// The specified path does not refer to a repository supported by the enabled
+    /// backends.
     #[snafu(display("not a VCS repository: {}", path.display()))]
     NotARepository {
         /// The path that was rejected.
         path: PathBuf,
     },
-    /// The specified path refers to a repository without a worktree, such as a
-    /// Git bare repository.
+    /// The specified path refers to a repository without a worktree, such as a Git bare
+    /// repository.
     #[snafu(display("repository has no worktree: {}", path.display()))]
     RepositoryWithoutWorktree {
         /// The path that was rejected.
@@ -58,8 +58,8 @@ pub enum ModifyGuardError {
         /// The path that was rejected.
         path: PathBuf,
     },
-    /// The specified path does not resolve to a valid path within the
-    /// repository worktree.
+    /// The specified path does not resolve to a valid path within the repository
+    /// worktree.
     #[snafu(display(
         "path does not resolve to a valid path within the repository worktree: {}",
         path.display()
@@ -68,7 +68,8 @@ pub enum ModifyGuardError {
         /// The path that was rejected.
         path: PathBuf,
     },
-    /// The specified path does not resolve to a single file within the repository worktree.
+    /// The specified path does not resolve to a single file within the repository
+    /// worktree.
     #[snafu(display(
         "path does not resolve to a single file within the repository worktree: {}",
         wt_path.display()

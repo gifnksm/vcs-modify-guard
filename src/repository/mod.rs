@@ -3,15 +3,15 @@
 //! Most users should start with [`crate::AllowOptions`], which implements the
 //! crate's built-in `--allow-*` safe-to-modify policy.
 //!
-//! This module provides the [`Repository`] type for tools that need to
-//! discover a VCS repository and inspect whether files are dirty and/or staged
-//! directly in order to implement custom policy logic. Dirty files include
-//! modified tracked files and untracked files.
+//! This module provides the [`Repository`] type for tools that need to discover a
+//! VCS repository and inspect whether files are dirty and/or staged directly in
+//! order to implement custom policy logic. Dirty files include modified tracked
+//! files and untracked files.
 //!
-//! Paths returned by change queries are relative to the repository worktree.
-//! Query methods that take a `wt_path` argument interpret it relative to that
-//! worktree. If you start with an absolute path or a path relative to the
-//! current working directory, use [`Repository::resolve_path`] first.
+//! Paths returned by change queries are relative to the repository worktree. Query
+//! methods that take a `wt_path` argument interpret it relative to that worktree.
+//! If you start with an absolute path or a path relative to the current working
+//! directory, use [`Repository::resolve_path`] first.
 //!
 //! Start with [`Repository::discover`] or [`Repository::open`], then query
 //! repository-wide changes directly or resolve a path and query it within the
@@ -19,8 +19,8 @@
 //!
 //! # Example
 //!
-//! The following example shows how to implement a custom safe-to-modify policy
-//! by querying repository changes directly.
+//! The following example shows how to implement a custom safe-to-modify policy by
+//! querying repository changes directly.
 //!
 //! ```no_run
 //! use std::{error::Error, path::Path};
@@ -92,17 +92,17 @@ mod tests;
 /// Most users should start with [`crate::AllowOptions`], which implements the
 /// crate's built-in `--allow-*` safe-to-modify policy.
 ///
-/// Use this type when you need to discover a repository and inspect whether
-/// files are dirty and/or staged directly in order to implement custom policy
-/// logic. Dirty files include modified tracked files and untracked files.
+/// Use this type when you need to discover a repository and inspect whether files
+/// are dirty and/or staged directly in order to implement custom policy logic.
+/// Dirty files include modified tracked files and untracked files.
 ///
 /// Repositories without a worktree, such as Git bare repositories, are not
 /// represented by this type.
 ///
 /// # Example
 ///
-/// The following example shows how to implement a custom safe-to-modify
-/// policy by querying repository changes directly.
+/// The following example shows how to implement a custom safe-to-modify policy by
+/// querying repository changes directly.
 ///
 /// ```no_run
 /// use std::{error::Error, path::Path};
@@ -163,19 +163,18 @@ pub struct Repository {
 impl Repository {
     /// Discovers the repository containing `path`.
     ///
-    /// This searches `path` and its parent directories for a repository
-    /// supported by one of the enabled backends.
+    /// This searches `path` and its parent directories for a repository supported by
+    /// one of the enabled backends.
     ///
-    /// Returns `Ok(Some(_))` if a supported repository worktree is found, or
-    /// `Ok(None)` if no supported repository is found.
+    /// Returns `Ok(Some(_))` if a supported repository worktree is found, or `Ok(None)`
+    /// if no supported repository is found.
     ///
     /// # Errors
     ///
     /// Returns an error if:
     ///
     /// * a backend fails while probing `path`
-    /// * the discovered repository does not provide a worktree for file
-    ///   change checks
+    /// * the discovered repository does not provide a worktree for file change checks
     #[inline]
     pub fn discover<P>(path: P) -> Result<Option<Self>, ModifyGuardError>
     where
@@ -189,9 +188,8 @@ impl Repository {
 
     /// Opens the repository at `path`.
     ///
-    /// Unlike [`Self::discover`], this does not search parent directories.
-    /// `path` must identify a repository directly according to the enabled
-    /// backend.
+    /// Unlike [`Self::discover`], this does not search parent directories. `path` must
+    /// identify a repository directly according to the enabled backend.
     ///
     /// # Errors
     ///
@@ -217,16 +215,16 @@ impl Repository {
 
     /// Resolves a path to a repository worktree-relative path.
     ///
-    /// This follows symlinks and canonicalizes the existing prefix of `path`.
-    /// The returned path is relative to [`Self::worktree`].
+    /// This follows symlinks and canonicalizes the existing prefix of `path`. The
+    /// returned path is relative to [`Self::worktree`].
     ///
-    /// If `path` does not exist in the worktree, this method may still succeed
-    /// when the missing path is lexically within the worktree, such as a path
-    /// to a deleted tracked file.
+    /// If `path` does not exist in the worktree, this method may still succeed when the
+    /// missing path is lexically within the worktree, such as a path to a deleted
+    /// tracked file.
     ///
-    /// Use this when you start with an absolute path or a path relative to the
-    /// current working directory and need the corresponding worktree-relative
-    /// path for [`Self::path_changes`] or [`Self::file_change`].
+    /// Use this when you start with an absolute path or a path relative to the current
+    /// working directory and need the corresponding worktree-relative path for
+    /// [`Self::path_changes`] or [`Self::file_change`].
     ///
     /// # Errors
     ///
@@ -244,11 +242,10 @@ impl Repository {
 
     /// Returns the aggregate file changes in the repository worktree.
     ///
-    /// Returns `Ok(None)` if the repository has no dirty or staged files.
-    /// Clean tracked files are not included in this aggregate
-    /// change set. Files ignored by the VCS are also omitted because this
-    /// crate is intended for `--allow-*` style checks, which treat them the
-    /// same as clean files.
+    /// Returns `Ok(None)` if the repository has no dirty or staged files. Clean tracked
+    /// files are not included in this aggregate change set. Files ignored by the VCS
+    /// are also omitted because this crate is intended for `--allow-*` style checks,
+    /// which treat them the same as clean files.
     ///
     /// Paths in the returned changes are relative to [`Self::worktree`].
     ///
@@ -260,37 +257,36 @@ impl Repository {
         self.inner.repository_changes()
     }
 
-    /// Returns the aggregate file changes for the worktree-relative `wt_path`
-    /// within the repository.
+    /// Returns the aggregate file changes for the worktree-relative `wt_path` within
+    /// the repository.
     ///
-    /// If `wt_path` resolves to a file path, the returned change set contains at
-    /// most that file. If `wt_path` resolves to a directory path, the returned
-    /// change set contains changes for files under that directory. The
-    /// repository worktree root is also accepted.
+    /// If `wt_path` resolves to a file path, the returned change set contains at most
+    /// that file. If `wt_path` resolves to a directory path, the returned change set
+    /// contains changes for files under that directory. The repository worktree root is
+    /// also accepted.
     ///
-    /// Returns `Ok(None)` if the resolved path has no dirty or staged files.
-    /// Clean tracked files are not included in this aggregate
-    /// change set. Files ignored by the VCS are also omitted because this
-    /// crate is intended for `--allow-*` style checks, which treat them the
-    /// same as clean files.
+    /// Returns `Ok(None)` if the resolved path has no dirty or staged files. Clean
+    /// tracked files are not included in this aggregate change set. Files ignored by
+    /// the VCS are also omitted because this crate is intended for `--allow-*` style
+    /// checks, which treat them the same as clean files.
     ///
     /// Paths in the returned changes are relative to [`Self::worktree`].
     ///
-    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an
-    /// absolute path or a path relative to the current working directory, use
+    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an absolute
+    /// path or a path relative to the current working directory, use
     /// [`Self::resolve_path`] first. Symlinks are followed.
     ///
-    /// If the resolved path does not exist in the worktree, this method may
-    /// still return changes when the path refers to paths known to the VCS,
-    /// such as a deleted tracked file path.
+    /// If the resolved path does not exist in the worktree, this method may still
+    /// return changes when the path refers to paths known to the VCS, such as a deleted
+    /// tracked file path.
     ///
     /// # Errors
     ///
     /// Returns an error if:
     ///
     /// * `wt_path` does not resolve to a path within [`Self::worktree`]
-    /// * `wt_path` does not exist in the worktree and does not refer to a path
-    ///   known to the VCS
+    /// * `wt_path` does not exist in the worktree and does not refer to a path known to
+    ///   the VCS
     /// * `wt_path` could not be resolved to a canonical path for any other reason
     /// * the backend fails to query changes for `wt_path` for any other reason
     #[inline]
@@ -301,41 +297,38 @@ impl Repository {
         self.inner.path_changes(wt_path.as_ref())
     }
 
-    /// Returns the dirty and/or staged change for the worktree-relative file
-    /// path `wt_path` within the repository, if any.
+    /// Returns the dirty and/or staged change for the worktree-relative file path
+    /// `wt_path` within the repository, if any.
     ///
-    /// Returns `Ok(None)` if the resolved file path is clean or ignored by the
-    /// VCS.
+    /// Returns `Ok(None)` if the resolved file path is clean or ignored by the VCS.
     ///
-    /// If this method returns `Ok(Some(change))`, the returned [`FileChange`]
-    /// describes the resolved file path.
+    /// If this method returns `Ok(Some(change))`, the returned [`FileChange`] describes
+    /// the resolved file path.
     ///
-    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an
-    /// absolute path or a path relative to the current working directory, use
+    /// `wt_path` is interpreted relative to [`Self::worktree`]. If you have an absolute
+    /// path or a path relative to the current working directory, use
     /// [`Self::resolve_path`] first. Symlinks are followed.
     ///
-    /// If the resolved path exists in the worktree, it must be a file.
-    /// If it does not exist in the worktree, this method may still return a
-    /// change when the path refers to a tracked file path known to the VCS,
-    /// such as a deletion change. [`FileChange::wt_path`] may differ from the
-    /// path passed to this method when the input reaches the same file path
-    /// through symlinks or other equivalent non-canonical forms.
+    /// If the resolved path exists in the worktree, it must be a file. If it does not
+    /// exist in the worktree, this method may still return a change when the path
+    /// refers to a tracked file path known to the VCS, such as a deletion change.
+    /// [`FileChange::wt_path`] may differ from the path passed to this method when the
+    /// input reaches the same file path through symlinks or other equivalent
+    /// non-canonical forms.
     ///
-    /// A file may be both staged and dirty at the same time if it has staged
-    /// changes and additional unstaged tracked changes.
+    /// A file may be both staged and dirty at the same time if it has staged changes
+    /// and additional unstaged tracked changes.
     ///
-    /// This operation is intended for file paths. It does not perform rename
-    /// detection.
+    /// This operation is intended for file paths. It does not perform rename detection.
     ///
     /// # Errors
     ///
     /// Returns an error if:
     ///
     /// * `wt_path` does not resolve to a path within [`Self::worktree`]
-    /// * the resolved path exists in the worktree but does not resolve to a
-    ///   file
-    /// * `wt_path` does not exist in the worktree and does not refer to a tracked
-    ///   path known to the VCS
+    /// * the resolved path exists in the worktree but does not resolve to a file
+    /// * `wt_path` does not exist in the worktree and does not refer to a tracked path
+    ///   known to the VCS
     /// * `wt_path` could not be resolved to a canonical path for any other reason
     /// * the backend fails to query file changes for any other reason
     #[inline]
@@ -352,11 +345,10 @@ impl Repository {
 /// Values of this type are returned by [`Repository::repository_changes`] and
 /// [`Repository::path_changes`].
 ///
-/// This type contains only dirty and/or staged files. Dirty files have
-/// unstaged modifications or are untracked. Clean tracked files are not
-/// included. Files ignored by the VCS are also omitted
-/// because this crate is intended for `--allow-*` style checks, which treat
-/// them the same as clean files.
+/// This type contains only dirty and/or staged files. Dirty files have unstaged
+/// modifications or are untracked. Clean tracked files are not included. Files
+/// ignored by the VCS are also omitted because this crate is intended for
+/// `--allow-*` style checks, which treat them the same as clean files.
 ///
 /// [`Repository::repository_changes`] and [`Repository::path_changes`] return
 /// `None` instead of an empty change set.
@@ -417,9 +409,9 @@ impl RepositoryChanges {
 
     /// Returns an iterator over dirty files in this change set.
     ///
-    /// A dirty file has unstaged modifications or is untracked.
-    /// Staged-only changes are not considered dirty.
-    /// Files are yielded in ascending worktree-relative path order.
+    /// A dirty file has unstaged modifications or is untracked. Staged-only changes are
+    /// not considered dirty. Files are yielded in ascending worktree-relative path
+    /// order.
     #[inline]
     #[must_use]
     pub fn dirty_files(&self) -> DirtyFiles<'_> {
@@ -443,8 +435,8 @@ impl RepositoryChanges {
 
     /// Returns whether this change set contains any dirty files.
     ///
-    /// A dirty file has unstaged modifications or is untracked.
-    /// Staged-only changes are not considered dirty.
+    /// A dirty file has unstaged modifications or is untracked. Staged-only changes are
+    /// not considered dirty.
     #[inline]
     #[must_use]
     pub fn has_dirty_files(&self) -> bool {
@@ -461,22 +453,20 @@ impl RepositoryChanges {
 
 /// A file change within a repository.
 ///
-/// Values of this type are returned by [`Repository::file_change`] and yielded
-/// by iterators over [`RepositoryChanges`] returned by
+/// Values of this type are returned by [`Repository::file_change`] and yielded by
+/// iterators over [`RepositoryChanges`] returned by
 /// [`Repository::repository_changes`] and [`Repository::path_changes`].
 ///
-/// Instances of this type always represent a dirty file, a staged file, or
-/// both. Dirty files have unstaged modifications or are untracked. Clean
-/// tracked files and files ignored by the VCS are not represented;
-/// [`Repository::file_change`] returns `None` for those cases.
+/// Instances of this type always represent a dirty file, a staged file, or both.
+/// Dirty files have unstaged modifications or are untracked. Clean tracked files
+/// and files ignored by the VCS are not represented; [`Repository::file_change`]
+/// returns `None` for those cases.
 ///
-/// The stored path is the worktree-relative path associated with this change
-/// in the VCS. It may refer to a tracked path that is no longer present in the
-/// worktree.
+/// The stored path is the worktree-relative path associated with this change in the
+/// VCS. It may refer to a tracked path that is no longer present in the worktree.
 ///
-/// More than one predicate may return `true` for the same file. For example,
-/// a file may have staged changes and additional unstaged tracked
-/// modifications.
+/// More than one predicate may return `true` for the same file. For example, a file
+/// may have staged changes and additional unstaged tracked modifications.
 #[derive(Debug, Clone)]
 pub struct FileChange {
     pub(crate) wt_path: PathBuf,
@@ -485,16 +475,13 @@ pub struct FileChange {
 }
 
 impl FileChange {
-    /// Returns the worktree-relative path associated with this file change in
-    /// the VCS.
+    /// Returns the worktree-relative path associated with this file change in the VCS.
     ///
-    /// This may refer to a tracked path that is no longer present in the
-    /// worktree.
+    /// This may refer to a tracked path that is no longer present in the worktree.
     ///
-    /// When this change is returned by [`Repository::file_change`], the
-    /// returned path may differ from the path passed to that method when the
-    /// input reaches the same path through symlinks or other equivalent
-    /// non-canonical forms.
+    /// When this change is returned by [`Repository::file_change`], the returned path
+    /// may differ from the path passed to that method when the input reaches the same
+    /// path through symlinks or other equivalent non-canonical forms.
     #[inline]
     #[must_use]
     pub fn wt_path(&self) -> &Path {
@@ -503,8 +490,8 @@ impl FileChange {
 
     /// Returns whether the file is dirty.
     ///
-    /// A dirty file has unstaged modifications or is untracked.
-    /// Staged-only changes are not considered dirty.
+    /// A dirty file has unstaged modifications or is untracked. Staged-only changes are
+    /// not considered dirty.
     #[inline]
     #[must_use]
     pub fn is_dirty(&self) -> bool {
@@ -521,8 +508,8 @@ impl FileChange {
 
 /// An iterator over all file changes in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryChanges::files`] method.
-/// Files are yielded in ascending worktree-relative path order.
+/// This struct is created by the [`RepositoryChanges::files`] method. Files are
+/// yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct Files<'a> {
     iter: slice::Iter<'a, FileChange>,
@@ -558,8 +545,8 @@ impl ExactSizeIterator for Files<'_> {
 
 /// An iterator over dirty files in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryChanges::dirty_files`] method.
-/// Files are yielded in ascending worktree-relative path order.
+/// This struct is created by the [`RepositoryChanges::dirty_files`] method. Files
+/// are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct DirtyFiles<'a> {
     iter: slice::Iter<'a, FileChange>,
@@ -600,8 +587,8 @@ impl ExactSizeIterator for DirtyFiles<'_> {
 
 /// An iterator over files with staged changes in a [`RepositoryChanges`].
 ///
-/// This struct is created by the [`RepositoryChanges::staged_files`] method.
-/// Files are yielded in ascending worktree-relative path order.
+/// This struct is created by the [`RepositoryChanges::staged_files`] method. Files
+/// are yielded in ascending worktree-relative path order.
 #[derive(Debug, Clone)]
 pub struct StagedFiles<'a> {
     iter: slice::Iter<'a, FileChange>,

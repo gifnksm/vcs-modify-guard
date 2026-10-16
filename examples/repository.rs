@@ -1,6 +1,5 @@
-//! Demonstrates how a CLI tool can implement `--allow-dirty`,
-//! `--allow-staged`, and `--allow-no-vcs` options with behavior
-//! equivalent to `cargo fix`.
+//! Demonstrates how a CLI tool can implement `--allow-dirty`, `--allow-staged`, and
+//! `--allow-no-vcs` options with behavior equivalent to `cargo fix`.
 
 use std::{
     error::Error,
@@ -16,8 +15,8 @@ struct Args {
     #[arg(long)]
     allow_no_vcs: bool,
 
-    /// Process code even if the containing repository has modified, staged,
-    /// or untracked files.
+    /// Process code even if the containing repository has modified, staged, or
+    /// untracked files.
     #[arg(long)]
     allow_dirty: bool,
 

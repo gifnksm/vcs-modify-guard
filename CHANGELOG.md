@@ -10,6 +10,22 @@ and this project adheres to
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+
+* **Breaking:** Updated `gix` from 0.89.0 to 0.90.0. The `source` fields of
+  `GixBackendError` variants now use `gix::Error` from 0.90.0; code relying on
+  the 0.89.0 type must be updated.
+
+### Security
+
+* Updated `gix` to fix [GHSA-q54r-jf2p-rfr2]. On some Windows and macOS
+  filesystems, an attacker-controlled repository could cause `gix` to overwrite
+  Git's own settings or hooks when writing files, for example during checkout or
+  merge. This crate only checks for file changes and does not perform these
+  writes.
+
+[GHSA-q54r-jf2p-rfr2]: https://github.com/advisories/GHSA-q54r-jf2p-rfr2
+
 ## [0.2.0] - 2026-10-13
 
 ### Changed

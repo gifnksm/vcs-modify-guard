@@ -22,10 +22,15 @@
 //! [`repository::Repository`] only when you need custom behavior beyond the
 //! built-in `--allow-*` semantics.
 //!
-//! <!-- rumdl-disable MD013 MD064 -->
 //! # Feature Flags
+// document_features! generates Markdown that needs MD013/MD064 suppression.
+// Use doc attributes so rumdl does not flag these as unused suppressions
+// when checking this source without macro expansion.
+// TODO: Replace these suppressions with formatting once cargo-sync-rdme
+// supports post-generation hooks or filters.
+#![doc = "<!-- rumdl-disable MD013 MD064 -->"]
 #![doc = document_features::document_features!()]
-//! <!-- rumdl-enable MD013 MD064 -->
+#![doc = "<!-- rumdl-enable MD013 MD064 -->"]
 //!
 //! # Example
 //!

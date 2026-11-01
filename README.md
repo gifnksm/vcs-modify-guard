@@ -38,9 +38,9 @@ Most users should start with [`AllowOptions`]. Reach for
 [`repository::Repository`] only when you need custom behavior beyond the
 built-in `--allow-*` semantics.
 
-<!-- rumdl-disable MD013 MD064 -->
-
 ## Feature Flags
+
+<!-- rumdl-disable MD013 MD064 -->
 
 This crate currently supports Git repositories via selectable Git
 backends.

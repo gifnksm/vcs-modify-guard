@@ -10,6 +10,35 @@ and this project adheres to
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+
+* **Breaking:** Updated the `gix` dependency from 0.90.0 to 0.91.0. The
+  `git-gix` feature enables this dependency to provide the Git backend. The
+  `source` fields of `GixBackendError` variants now use `gix::Error` as exported
+  by `gix` 0.91.0. If you also depend on `gix` directly and work with these
+  errors, update to 0.91.0 for the matching API.
+
+### Security
+
+* Updating the `gix` backend removes its transitive dependency on `heapless`
+  0.8.0 from `Cargo.lock`, clearing the audit findings for [RUSTSEC-2026-0574],
+  [RUSTSEC-2026-0575], [RUSTSEC-2026-0576], [RUSTSEC-2026-0577],
+  [RUSTSEC-2026-0578], [RUSTSEC-2026-0579], [RUSTSEC-2026-0580],
+  [RUSTSEC-2026-0581], and [RUSTSEC-2026-0582].
+
+  In `vcs-modify-guard` 0.3.0, `heapless` was an unused transitive dependency of
+  the Git backend, so these advisories did not affect the backend.
+
+[RUSTSEC-2026-0574]: https://rustsec.org/advisories/RUSTSEC-2026-0574.html
+[RUSTSEC-2026-0575]: https://rustsec.org/advisories/RUSTSEC-2026-0575.html
+[RUSTSEC-2026-0576]: https://rustsec.org/advisories/RUSTSEC-2026-0576.html
+[RUSTSEC-2026-0577]: https://rustsec.org/advisories/RUSTSEC-2026-0577.html
+[RUSTSEC-2026-0578]: https://rustsec.org/advisories/RUSTSEC-2026-0578.html
+[RUSTSEC-2026-0579]: https://rustsec.org/advisories/RUSTSEC-2026-0579.html
+[RUSTSEC-2026-0580]: https://rustsec.org/advisories/RUSTSEC-2026-0580.html
+[RUSTSEC-2026-0581]: https://rustsec.org/advisories/RUSTSEC-2026-0581.html
+[RUSTSEC-2026-0582]: https://rustsec.org/advisories/RUSTSEC-2026-0582.html
+
 ## [0.3.0] - 2026-10-24
 
 ### Changed
